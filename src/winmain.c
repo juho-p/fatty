@@ -17,6 +17,10 @@
 
 #include <sys/cygwin.h>
 
+struct term* g_active_terminal;
+static struct term main_terminal;
+static struct child main_child;
+
 HINSTANCE inst;
 HWND wnd;
 HIMC imc;
@@ -76,9 +80,19 @@ load_dwm_funcs(void)
   }
 }
 
+struct timercb
+{
+  void (*cb)(void*);
+  void* data;
+};
 void
-win_set_timer(void (*cb)(void), uint ticks)
-{ SetTimer(wnd, (UINT_PTR)cb, ticks, null); }
+win_set_timer(void (*cb)(void*), void* data, uint ticks)
+{
+  struct timercb* timerdata = malloc(sizeof(struct timercb));
+  timerdata->cb = cb;
+  timerdata->data = data;
+  SetTimer(wnd, (UINT_PTR)timerdata, ticks, null);
+}
 
 void
 win_set_title(char *title)
@@ -293,7 +307,7 @@ win_bell(void)
       MessageBeep((cfg.bell_type - 1) * 16);
     }
   }
-  if (cfg.bell_taskbar && !term.has_focus)
+  if (cfg.bell_taskbar && !g_active_terminal->has_focus)
     flash_taskbar(true);
 }
 
@@ -321,10 +335,10 @@ win_adapt_term_size(void)
   int term_height = client_height - 2 * PADDING;
   int cols = max(1, term_width / font_width);
   int rows = max(1, term_height / font_height);
-  if (rows != term.rows || cols != term.cols) {
-    term_resize(rows, cols);
+  if (rows != g_active_terminal->rows || cols != g_active_terminal->cols) {
+    term_resize(g_active_terminal, rows, cols);
     struct winsize ws = {rows, cols, cols * font_width, rows * font_height};
-    child_resize(&ws);
+    child_resize(g_active_terminal->child, &ws);
   }
   win_invalidate_all();
 }
@@ -344,7 +358,7 @@ update_glass(void)
   if (pDwmExtendFrameIntoClientArea) {
     bool enabled =
       cfg.transparency == TR_GLASS && !win_is_fullscreen &&
-      !(cfg.opaque_when_focused && term.has_focus);
+      !(cfg.opaque_when_focused && g_active_terminal->has_focus);
     pDwmExtendFrameIntoClientArea(wnd, &(MARGINS){enabled ? -1 : 0, 0, 0, 0});
   }
 }
@@ -434,7 +448,7 @@ update_transparency(void)
   style = trans ? style | WS_EX_LAYERED : style & ~WS_EX_LAYERED;
   SetWindowLong(wnd, GWL_EXSTYLE, style);
   if (trans) {
-    if (cfg.opaque_when_focused && term.has_focus)
+    if (cfg.opaque_when_focused && g_active_terminal->has_focus)
       trans = 0;
     SetLayeredWindowAttributes(wnd, 0, 255 - (uchar)trans, LWA_ALPHA);
   }
@@ -445,7 +459,7 @@ update_transparency(void)
 void
 win_update_scrollbar(void)
 {
-  int scrollbar = term.show_scrollbar ? cfg.scrollbar : 0;
+  int scrollbar = g_active_terminal->show_scrollbar ? cfg.scrollbar : 0;
   LONG style = GetWindowLong(wnd, GWL_STYLE);
   SetWindowLong(wnd, GWL_STYLE,
                 scrollbar ? style | WS_VSCROLL : style & ~WS_VSCROLL);
@@ -462,7 +476,7 @@ void
 win_reconfig(void)
 {
  /* Pass new config data to the terminal */
-  term_reconfig();
+  term_reconfig(g_active_terminal);
 
   bool font_changed =
     strcmp(new_cfg.font.name, cfg.font.name) ||
@@ -493,19 +507,19 @@ win_reconfig(void)
 
   bool old_ambig_wide = cs_ambig_wide;
   cs_reconfig();
-  if (term.report_font_changed && font_changed)
-    if (term.report_ambig_width)
-      child_write(cs_ambig_wide ? "\e[2W" : "\e[1W", 4);
+  if (g_active_terminal->report_font_changed && font_changed)
+    if (g_active_terminal->report_ambig_width)
+      child_write(g_active_terminal->child, cs_ambig_wide ? "\e[2W" : "\e[1W", 4);
     else
-      child_write("\e[0W", 4);
-  else if (term.report_ambig_width && old_ambig_wide != cs_ambig_wide)
-    child_write(cs_ambig_wide ? "\e[2W" : "\e[1W", 4);
+      child_write(g_active_terminal->child, "\e[0W", 4);
+  else if (g_active_terminal->report_ambig_width && old_ambig_wide != cs_ambig_wide)
+    child_write(g_active_terminal->child, cs_ambig_wide ? "\e[2W" : "\e[1W", 4);
 }
 
 static bool
 confirm_exit(void)
 {
-  if (!child_is_parent())
+  if (!child_is_parent(g_active_terminal->child))
     return true;
 
   int ret =
@@ -526,42 +540,43 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
   switch (message) {
     when WM_TIMER: {
       KillTimer(wnd, wp);
-      void_fn cb = (void_fn)wp;
-      cb();
+      struct timercb* cb = (struct timercb*)wp;
+      cb->cb(cb->data);
+      free(cb);
       return 0;
     }
     when WM_CLOSE:
       if (!cfg.confirm_exit || confirm_exit())
-        child_kill((GetKeyState(VK_SHIFT) & 0x80) != 0);
+        child_kill(g_active_terminal->child, (GetKeyState(VK_SHIFT) & 0x80) != 0);
       return 0;
     when WM_COMMAND or WM_SYSCOMMAND:
       switch (wp & ~0xF) {  /* low 4 bits reserved to Windows */
-        when IDM_OPEN: term_open();
-        when IDM_COPY: term_copy();
+        when IDM_OPEN: term_open(g_active_terminal);
+        when IDM_COPY: term_copy(g_active_terminal);
         when IDM_PASTE: win_paste();
-        when IDM_SELALL: term_select_all(); win_update();
-        when IDM_RESET: term_reset(); win_update();
+        when IDM_SELALL: term_select_all(g_active_terminal); win_update();
+        when IDM_RESET: term_reset(g_active_terminal); win_update();
         when IDM_DEFSIZE: default_size();
         when IDM_FULLSCREEN: win_maximise(win_is_fullscreen ? 0 : 2);
-        when IDM_FLIPSCREEN: term_flip_screen();
+        when IDM_FLIPSCREEN: term_flip_screen(g_active_terminal);
         when IDM_OPTIONS: win_open_config();
-        when IDM_NEW: child_fork(main_argc, main_argv);
+        when IDM_NEW: child_fork(g_active_terminal->child, main_argc, main_argv);
         when IDM_COPYTITLE: win_copy_title();
       }
     when WM_VSCROLL:
       switch (LOWORD(wp)) {
-        when SB_BOTTOM:   term_scroll(-1, 0);
-        when SB_TOP:      term_scroll(+1, 0);
-        when SB_LINEDOWN: term_scroll(0, +1);
-        when SB_LINEUP:   term_scroll(0, -1);
-        when SB_PAGEDOWN: term_scroll(0, +max(1, term.rows - 1));
-        when SB_PAGEUP:   term_scroll(0, -max(1, term.rows - 1));
+        when SB_BOTTOM:   term_scroll(g_active_terminal, -1, 0);
+        when SB_TOP:      term_scroll(g_active_terminal, +1, 0);
+        when SB_LINEDOWN: term_scroll(g_active_terminal, 0, +1);
+        when SB_LINEUP:   term_scroll(g_active_terminal, 0, -1);
+        when SB_PAGEDOWN: term_scroll(g_active_terminal, 0, +max(1, g_active_terminal->rows - 1));
+        when SB_PAGEUP:   term_scroll(g_active_terminal, 0, -max(1, g_active_terminal->rows - 1));
         when SB_THUMBPOSITION or SB_THUMBTRACK: {
           SCROLLINFO info;
           info.cbSize = sizeof(SCROLLINFO);
           info.fMask = SIF_TRACKPOS;
           GetScrollInfo(wnd, SB_VERT, &info);
-          term_scroll(1, info.nTrackPos);
+          term_scroll(g_active_terminal, 1, info.nTrackPos);
         }
       }
     when WM_LBUTTONDOWN: win_mouse_click(MBT_LEFT, lp);
@@ -580,7 +595,7 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
       if (win_key_up(wp, lp))
         return 0;
     when WM_CHAR or WM_SYSCHAR:
-      child_sendw(&(wchar){wp}, 1);
+      child_sendw(g_active_terminal->child, &(wchar){wp}, 1);
       return 0;
     when WM_INPUTLANGCHANGE:
       win_set_ime_open(ImmIsIME(GetKeyboardLayout(0)) && ImmGetOpenStatus(imc));
@@ -595,7 +610,7 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
         if (len > 0) {
           char buf[len];
           ImmGetCompositionStringW(imc, GCS_RESULTSTR, buf, len);
-          child_sendw((wchar *)buf, len / 2);
+          child_sendw(g_active_terminal->child, (wchar *)buf, len / 2);
         }
         return 1;
       }
@@ -603,7 +618,7 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
       win_paint();
       return 0;
     when WM_SETFOCUS:
-      term_set_focus(true);
+      term_set_focus(g_active_terminal, true);
       CreateCaret(wnd, caretbm, 0, 0);
       flash_taskbar(false);  /* stop */
       win_update();
@@ -611,7 +626,7 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
       ShowCaret(wnd);
     when WM_KILLFOCUS:
       win_show_mouse();
-      term_set_focus(false);
+      term_set_focus(g_active_terminal, false);
       DestroyCaret();
       win_update();
       update_transparency();
@@ -761,6 +776,9 @@ warn(char *format, ...)
 int
 main(int argc, char *argv[])
 {
+  char* home;
+  char* cmd;
+
   main_argv = argv;
   main_argc = argc;
   load_dwm_funcs();
@@ -1032,8 +1050,12 @@ main(int argc, char *argv[])
   }
 
   // Initialise the terminal.
-  term_reset();
-  term_resize(cfg.rows, cfg.cols);
+  g_active_terminal = &main_terminal;
+  main_terminal.child = &main_child;
+  main_terminal.update_window_callback = win_update;
+
+  term_reset(g_active_terminal);
+  term_resize(g_active_terminal, cfg.rows, cfg.cols);
 
   // Initialise the scroll bar.
   SetScrollInfo(
@@ -1057,7 +1079,9 @@ main(int argc, char *argv[])
   update_transparency();
 
   // Create child process.
-  child_create(
+  main_child.cmd = cmd;
+  main_child.home = home;
+  child_create(&main_child, &main_terminal,
     argv, &(struct winsize){cfg.rows, cfg.cols, term_width, term_height}
   );
 
@@ -1065,6 +1089,7 @@ main(int argc, char *argv[])
   fullscr_on_max = (cfg.window == -1);
   ShowWindow(wnd, fullscr_on_max ? SW_SHOWMAXIMIZED : cfg.window);
 
+  puts("mainloop");
   // Message loop.
   for (;;) {
     MSG msg;
@@ -1074,6 +1099,8 @@ main(int argc, char *argv[])
       if (!IsDialogMessage(config_wnd, &msg))
         DispatchMessage(&msg);
     }
-    child_proc();
+    child_proc(&main_child);
   }
+  //  kill(-pid, SIGHUP);
+  kill(-main_child.pid, SIGHUP);
 }

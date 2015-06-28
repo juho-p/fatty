@@ -6,12 +6,12 @@
 #include "termpriv.h"
 
 termline *
-newline(int cols, int bce)
+newline(int cols, termchar erase_char)
 {
   termline *line = new(termline);
   line->chars = newn(termchar, cols);
   for (int j = 0; j < cols; j++)
-    line->chars[j] = (bce ? term.erase_char : basic_erase_char);
+    line->chars[j] = erase_char;
   line->cols = line->size = cols;
   line->attr = LATTR_NORM;
   line->temporary = false;
@@ -667,11 +667,11 @@ decompressline(uchar *data, int *bytes_used)
  * Clear a line, throwing away any combining characters.
  */
 void
-clearline(termline *line)
+clearline(termline *line, termchar erase_char)
 {
   line->attr = LATTR_NORM;
   for (int j = 0; j < line->cols; j++)
-    line->chars[j] = term.erase_char;
+    line->chars[j] = erase_char;
   if (line->size > line->cols) {
     line->size = line->cols;
     line->chars = renewn(line->chars, line->size);
@@ -728,9 +728,9 @@ resizeline(termline *line, int cols)
  * Get the number of lines in the scrollback.
  */
 int
-sblines(void)
+sblines(struct term* term)
 {
-  return term.on_alt_screen ^ term.show_other_screen ? 0 : term.sblines;
+  return term->on_alt_screen ^ term->show_other_screen ? 0 : term->sblines;
 }
 
 /*
@@ -739,23 +739,23 @@ sblines(void)
  * (respectively).
  */
 termline *
-fetch_line(int y)
+fetch_line(struct term* term, int y)
 {
-  termlines *lines = term.show_other_screen ? term.other_lines : term.lines;
+  termlines *lines = term->show_other_screen ? term->other_lines : term->lines;
 
   termline *line;
   if (y >= 0) {
-    assert(y < term.rows);
+    assert(y < term->rows);
     line = lines[y];
   }
   else {
-    assert(y < term.sblines);
-    y += term.sbpos;
+    assert(y < term->sblines);
+    y += term->sbpos;
     if (y < 0)
-      y += term.sblen; // Scrollback has wrapped round
-    uchar *cline = term.scrollback[y];
+      y += term->sblen; // Scrollback has wrapped round
+    uchar *cline = term->scrollback[y];
     line = decompressline(cline, null);
-    resizeline(line, term.cols);
+    resizeline(line, term->cols);
   }
 
   assert(line);
@@ -778,73 +778,73 @@ release_line(termline *line)
  * fed to the algorithm on each line of the display.
  */
 static int
-term_bidi_cache_hit(int line, termchar *lbefore, int width)
+term_bidi_cache_hit(struct term* term, int line, termchar *lbefore, int width)
 {
   int i;
 
-  if (!term.pre_bidi_cache)
+  if (!term->pre_bidi_cache)
     return false;       /* cache doesn't even exist yet! */
 
-  if (line >= term.bidi_cache_size)
+  if (line >= term->bidi_cache_size)
     return false;       /* cache doesn't have this many lines */
 
-  if (!term.pre_bidi_cache[line].chars)
+  if (!term->pre_bidi_cache[line].chars)
     return false;       /* cache doesn't contain _this_ line */
 
-  if (term.pre_bidi_cache[line].width != width)
+  if (term->pre_bidi_cache[line].width != width)
     return false;       /* line is wrong width */
 
   for (i = 0; i < width; i++)
-    if (!termchars_equal(term.pre_bidi_cache[line].chars + i, lbefore + i))
+    if (!termchars_equal(term->pre_bidi_cache[line].chars + i, lbefore + i))
       return false;     /* line doesn't match cache */
 
   return true;  /* it didn't match. */
 }
 
 static void
-term_bidi_cache_store(int line, termchar *lbefore, termchar *lafter,
+term_bidi_cache_store(struct term* term, int line, termchar *lbefore, termchar *lafter,
                       bidi_char *wcTo, int width, int size)
 {
   int i;
 
-  if (!term.pre_bidi_cache || term.bidi_cache_size <= line) {
-    int j = term.bidi_cache_size;
-    term.bidi_cache_size = line + 1;
-    term.pre_bidi_cache = renewn(term.pre_bidi_cache, term.bidi_cache_size);
-    term.post_bidi_cache = renewn(term.post_bidi_cache, term.bidi_cache_size);
-    while (j < term.bidi_cache_size) {
-      term.pre_bidi_cache[j].chars = term.post_bidi_cache[j].chars = null;
-      term.pre_bidi_cache[j].width = term.post_bidi_cache[j].width = -1;
-      term.pre_bidi_cache[j].forward = term.post_bidi_cache[j].forward = null;
-      term.pre_bidi_cache[j].backward = term.post_bidi_cache[j].backward = null;
+  if (!term->pre_bidi_cache || term->bidi_cache_size <= line) {
+    int j = term->bidi_cache_size;
+    term->bidi_cache_size = line + 1;
+    term->pre_bidi_cache = renewn(term->pre_bidi_cache, term->bidi_cache_size);
+    term->post_bidi_cache = renewn(term->post_bidi_cache, term->bidi_cache_size);
+    while (j < term->bidi_cache_size) {
+      term->pre_bidi_cache[j].chars = term->post_bidi_cache[j].chars = null;
+      term->pre_bidi_cache[j].width = term->post_bidi_cache[j].width = -1;
+      term->pre_bidi_cache[j].forward = term->post_bidi_cache[j].forward = null;
+      term->pre_bidi_cache[j].backward = term->post_bidi_cache[j].backward = null;
       j++;
     }
   }
 
-  free(term.pre_bidi_cache[line].chars);
-  free(term.post_bidi_cache[line].chars);
-  free(term.post_bidi_cache[line].forward);
-  free(term.post_bidi_cache[line].backward);
+  free(term->pre_bidi_cache[line].chars);
+  free(term->post_bidi_cache[line].chars);
+  free(term->post_bidi_cache[line].forward);
+  free(term->post_bidi_cache[line].backward);
 
-  term.pre_bidi_cache[line].width = width;
-  term.pre_bidi_cache[line].chars = newn(termchar, size);
-  term.post_bidi_cache[line].width = width;
-  term.post_bidi_cache[line].chars = newn(termchar, size);
-  term.post_bidi_cache[line].forward = newn(int, width);
-  term.post_bidi_cache[line].backward = newn(int, width);
+  term->pre_bidi_cache[line].width = width;
+  term->pre_bidi_cache[line].chars = newn(termchar, size);
+  term->post_bidi_cache[line].width = width;
+  term->post_bidi_cache[line].chars = newn(termchar, size);
+  term->post_bidi_cache[line].forward = newn(int, width);
+  term->post_bidi_cache[line].backward = newn(int, width);
 
-  memcpy(term.pre_bidi_cache[line].chars, lbefore, size * sizeof(termchar));
-  memcpy(term.post_bidi_cache[line].chars, lafter, size * sizeof(termchar));
-  memset(term.post_bidi_cache[line].forward, 0, width * sizeof (int));
-  memset(term.post_bidi_cache[line].backward, 0, width * sizeof (int));
+  memcpy(term->pre_bidi_cache[line].chars, lbefore, size * sizeof(termchar));
+  memcpy(term->post_bidi_cache[line].chars, lafter, size * sizeof(termchar));
+  memset(term->post_bidi_cache[line].forward, 0, width * sizeof (int));
+  memset(term->post_bidi_cache[line].backward, 0, width * sizeof (int));
 
   for (i = 0; i < width; i++) {
     int p = wcTo[i].index;
 
     assert(0 <= p && p < width);
 
-    term.post_bidi_cache[line].backward[i] = p;
-    term.post_bidi_cache[line].forward[p] = i;
+    term->post_bidi_cache[line].backward[i] = p;
+    term->post_bidi_cache[line].forward[p] = i;
   }
 }
 
@@ -857,52 +857,52 @@ term_bidi_cache_store(int line, termchar *lbefore, termchar *lafter,
  * term.post_bidi_cache[scr_y].*.
  */
 termchar *
-term_bidi_line(termline *line, int scr_y)
+term_bidi_line(struct term* term, termline *line, int scr_y)
 {
   termchar *lchars;
   int it;
 
  /* Do Arabic shaping and bidi. */
 
-  if (!term_bidi_cache_hit(scr_y, line->chars, term.cols)) {
+  if (!term_bidi_cache_hit(term, scr_y, line->chars, term->cols)) {
 
-    if (term.wcFromTo_size < term.cols) {
-      term.wcFromTo_size = term.cols;
-      term.wcFrom = renewn(term.wcFrom, term.wcFromTo_size);
-      term.wcTo = renewn(term.wcTo, term.wcFromTo_size);
+    if (term->wcFromTo_size < term->cols) {
+      term->wcFromTo_size = term->cols;
+      term->wcFrom = renewn(term->wcFrom, term->wcFromTo_size);
+      term->wcTo = renewn(term->wcTo, term->wcFromTo_size);
     }
 
-    for (it = 0; it < term.cols; it++) {
+    for (it = 0; it < term->cols; it++) {
       wchar c = line->chars[it].chr;
-      term.wcFrom[it].origwc = term.wcFrom[it].wc = c;
-      term.wcFrom[it].index = it;
+      term->wcFrom[it].origwc = term->wcFrom[it].wc = c;
+      term->wcFrom[it].index = it;
     }
 
-    do_bidi(term.wcFrom, term.cols);
-    do_shape(term.wcFrom, term.wcTo, term.cols);
+    do_bidi(term->wcFrom, term->cols);
+    do_shape(term->wcFrom, term->wcTo, term->cols);
 
-    if (term.ltemp_size < line->size) {
-      term.ltemp_size = line->size;
-      term.ltemp = renewn(term.ltemp, term.ltemp_size);
+    if (term->ltemp_size < line->size) {
+      term->ltemp_size = line->size;
+      term->ltemp = renewn(term->ltemp, term->ltemp_size);
     }
 
-    memcpy(term.ltemp, line->chars, line->size * sizeof(termchar));
+    memcpy(term->ltemp, line->chars, line->size * sizeof(termchar));
 
-    for (it = 0; it < term.cols; it++) {
-      term.ltemp[it] = line->chars[term.wcTo[it].index];
-      if (term.ltemp[it].cc_next)
-        term.ltemp[it].cc_next -= it - term.wcTo[it].index;
+    for (it = 0; it < term->cols; it++) {
+      term->ltemp[it] = line->chars[term->wcTo[it].index];
+      if (term->ltemp[it].cc_next)
+        term->ltemp[it].cc_next -= it - term->wcTo[it].index;
 
-      if (term.wcTo[it].origwc != term.wcTo[it].wc)
-        term.ltemp[it].chr = term.wcTo[it].wc;
+      if (term->wcTo[it].origwc != term->wcTo[it].wc)
+        term->ltemp[it].chr = term->wcTo[it].wc;
     }
-    term_bidi_cache_store(scr_y, line->chars, term.ltemp, term.wcTo,
-                          term.cols, line->size);
+    term_bidi_cache_store(term, scr_y, line->chars, term->ltemp, term->wcTo,
+                          term->cols, line->size);
 
-    lchars = term.ltemp;
+    lchars = term->ltemp;
   }
   else {
-    lchars = term.post_bidi_cache[scr_y].chars;
+    lchars = term->post_bidi_cache[scr_y].chars;
   }
 
   return lchars;

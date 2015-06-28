@@ -9,8 +9,6 @@
 #include "charset.h"
 #include "child.h"
 
-struct term term;
-
 const cattr CATTR_DEFAULT =
             {.attr = ATTR_DEFAULT, .truefg = 0, .truebg = 0};
 
@@ -24,56 +22,61 @@ termchar basic_erase_char = {.cc_next = 0, .chr = ' ',
  * a text blink has just occurred.
  */
 static void
-tblink_cb(void)
+tblink_cb(void* data)
 {
-  term.tblinker = !term.tblinker;
-  term_schedule_tblink();
-  win_update();
+  struct term* term = (struct term*)data;
+  term->tblinker = !term->tblinker;
+  term_schedule_tblink(term);
+  term->update_window_callback();
 }
 
 void
-term_schedule_tblink(void)
+term_schedule_tblink(struct term* term)
 {
-  if (term.blink_is_real)
-    win_set_timer(tblink_cb, 500);
+  if (term->blink_is_real)
+    win_set_timer(tblink_cb, term, 500);
   else
-    term.tblinker = 1;  /* reset when not in use */
+    term->tblinker = 1;  /* reset when not in use */
 }
 
 /*
  * Likewise with cursor blinks.
  */
 static void
-cblink_cb(void)
+cblink_cb(void* data)
 {
-  term.cblinker = !term.cblinker;
-  term_schedule_cblink();
-  win_update();
+  static int x = 0;
+  printf("cblink %d\n", x++);
+  struct term* term = (struct term*)data;
+  term->cblinker = !term->cblinker;
+  term_schedule_cblink(term);
+  term->update_window_callback();
 }
 
 void
-term_schedule_cblink(void)
+term_schedule_cblink(struct term* term)
 {
-  if (term_cursor_blinks() && term.has_focus)
-    win_set_timer(cblink_cb, cursor_blink_ticks());
+  if (term_cursor_blinks(term) && term->has_focus)
+    win_set_timer(cblink_cb, term, cursor_blink_ticks());
   else
-    term.cblinker = 1;  /* reset when not in use */
+    term->cblinker = 1;  /* reset when not in use */
 }
 
 static void
-vbell_cb(void)
+vbell_cb(void* data)
 {
-  term.in_vbell = false;
-  win_update();
+  struct term* term = (struct term*)data;
+  term->in_vbell = false;
+  term->update_window_callback();
 }
 
 void
-term_schedule_vbell(int already_started, int startpoint)
+term_schedule_vbell(struct term* term, int already_started, int startpoint)
 {
   int ticks_gone = already_started ? get_tick_count() - startpoint : 0;
   int ticks = 100 - ticks_gone;
-  if ((term.in_vbell = ticks > 0))
-    win_set_timer(vbell_cb, ticks);
+  if ((term->in_vbell = ticks > 0))
+    win_set_timer(vbell_cb, term, ticks);
 }
 
 /* Find the bottom line on the screen that has any content.
@@ -81,13 +84,13 @@ term_schedule_vbell(int already_started, int startpoint)
  * If no lines have content, return -1.
  */
 int
-term_last_nonempty_line(void)
+term_last_nonempty_line(struct term* term)
 {
-  for (int i = term.rows - 1; i >= 0; i--) {
-    termline *line = term.lines[i];
+  for (int i = term->rows - 1; i >= 0; i--) {
+    termline *line = term->lines[i];
     if (line) {
       for (int j = 0; j < line->cols; j++)
-        if (!termchars_equal(&line->chars[j], &term.erase_char))
+        if (!termchars_equal(&line->chars[j], &term->erase_char))
           return i;
     }
   }
@@ -103,187 +106,187 @@ term_cursor_reset(term_cursor *curs)
 }
 
 void
-term_reset(void)
+term_reset(struct term* term)
 {
-  term.state = NORMAL;
+  term->state = NORMAL;
 
-  term_cursor_reset(&term.curs);
-  term_cursor_reset(&term.saved_cursors[0]);
-  term_cursor_reset(&term.saved_cursors[1]);
+  term_cursor_reset(&term->curs);
+  term_cursor_reset(&term->saved_cursors[0]);
+  term_cursor_reset(&term->saved_cursors[1]);
 
-  term.backspace_sends_bs = cfg.backspace_sends_bs;
-  term.delete_sends_del = cfg.delete_sends_del;
-  if (term.tabs) {
-    for (int i = 0; i < term.cols; i++)
-      term.tabs[i] = (i % 8 == 0);
+  term->backspace_sends_bs = cfg.backspace_sends_bs;
+  term->delete_sends_del = cfg.delete_sends_del;
+  if (term->tabs) {
+    for (int i = 0; i < term->cols; i++)
+      term->tabs[i] = (i % 8 == 0);
   }
-  term.rvideo = 0;
-  term.in_vbell = false;
-  term.cursor_on = true;
-  term.echoing = false;
-  term.insert = false;
-  term.shortcut_override = term.escape_sends_fs = term.app_escape_key = false;
-  term.vt220_keys = strstr(cfg.term, "vt220");
-  term.app_keypad = term.app_cursor_keys = term.app_wheel = false;
-  term.mouse_mode = MM_NONE;
-  term.mouse_enc = ME_X10;
-  term.wheel_reporting = true;
-  term.modify_other_keys = 0;
-  term.report_focus = 0;
-  term.report_font_changed = 0;
-  term.report_ambig_width = 0;
-  term.bracketed_paste = false;
-  term.show_scrollbar = true;
+  term->rvideo = 0;
+  term->in_vbell = false;
+  term->cursor_on = true;
+  term->echoing = false;
+  term->insert = false;
+  term->shortcut_override = term->escape_sends_fs = term->app_escape_key = false;
+  term->vt220_keys = strstr(cfg.term, "vt220");
+  term->app_keypad = term->app_cursor_keys = term->app_wheel = false;
+  term->mouse_mode = MM_NONE;
+  term->mouse_enc = ME_X10;
+  term->wheel_reporting = true;
+  term->modify_other_keys = 0;
+  term->report_focus = 0;
+  term->report_font_changed = 0;
+  term->report_ambig_width = 0;
+  term->bracketed_paste = false;
+  term->show_scrollbar = true;
 
-  term.marg_top = 0;
-  term.marg_bot = term.rows - 1;
+  term->marg_top = 0;
+  term->marg_bot = term->rows - 1;
 
-  term.cursor_type = -1;
-  term.cursor_blinks = -1;
-  term.blink_is_real = cfg.allow_blinking;
-  term.erase_char = basic_erase_char;
-  term.on_alt_screen = false;
-  term_print_finish();
-  if (term.lines) {
-    term_switch_screen(1, false);
-    term_erase(false, false, true, true);
-    term_switch_screen(0, false);
-    term_erase(false, false, true, true);
-    term.curs.y = term_last_nonempty_line() + 1;
-    if (term.curs.y == term.rows) {
-      term.curs.y--;
-      term_do_scroll(0, term.rows - 1, 1, true);
+  term->cursor_type = -1;
+  term->cursor_blinks = -1;
+  term->blink_is_real = cfg.allow_blinking;
+  term->erase_char = basic_erase_char;
+  term->on_alt_screen = false;
+  term_print_finish(term);
+  if (term->lines) {
+    term_switch_screen(term, 1, false);
+    term_erase(term, false, false, true, true);
+    term_switch_screen(term, 0, false);
+    term_erase(term, false, false, true, true);
+    term->curs.y = term_last_nonempty_line(term) + 1;
+    if (term->curs.y == term->rows) {
+      term->curs.y--;
+      term_do_scroll(term, 0, term->rows - 1, 1, true);
     }
   }
-  term.selected = false;
-  term_schedule_tblink();
-  term_schedule_cblink();
-  term_clear_scrollback();
+  term->selected = false;
+  term_schedule_tblink(term);
+  term_schedule_cblink(term);
+  term_clear_scrollback(term);
 
   win_reset_colours();
 }
 
 static void
-show_screen(bool other_screen)
+show_screen(struct term* term, bool other_screen)
 {
-  term.show_other_screen = other_screen;
-  term.disptop = 0;
-  term.selected = false;
+  term->show_other_screen = other_screen;
+  term->disptop = 0;
+  term->selected = false;
 
   // Reset cursor blinking.
   if (!other_screen) {
-    term.cblinker = 1;
-    term_schedule_cblink();
+    term->cblinker = 1;
+    term_schedule_cblink(term);
   }
 
-  win_update();
+  term->update_window_callback();
 }
 
 /* Return to active screen and reset scrollback */
 void
-term_reset_screen(void)
+term_reset_screen(struct term* term)
 {
-  show_screen(false);
+  show_screen(term, false);
 }
 
 /* Switch display to other screen and reset scrollback */
 void
-term_flip_screen(void)
+term_flip_screen(struct term* term)
 {
-  show_screen(!term.show_other_screen);
+  show_screen(term, !term->show_other_screen);
 }
 
 /* Apply changed settings */
 void
-term_reconfig(void)
+term_reconfig(struct term* term)
 {
   if (!*new_cfg.printer)
-    term_print_finish();
+    term_print_finish(term);
   if (new_cfg.allow_blinking != cfg.allow_blinking)
-    term.blink_is_real = new_cfg.allow_blinking;
+    term->blink_is_real = new_cfg.allow_blinking;
   cfg.cursor_blinks = new_cfg.cursor_blinks;
-  term_schedule_tblink();
-  term_schedule_cblink();
+  term_schedule_tblink(term);
+  term_schedule_cblink(term);
   if (new_cfg.backspace_sends_bs != cfg.backspace_sends_bs)
-    term.backspace_sends_bs = new_cfg.backspace_sends_bs;
+    term->backspace_sends_bs = new_cfg.backspace_sends_bs;
   if (new_cfg.delete_sends_del != cfg.delete_sends_del)
-    term.delete_sends_del = new_cfg.delete_sends_del;
+    term->delete_sends_del = new_cfg.delete_sends_del;
   if (strcmp(new_cfg.term, cfg.term))
-    term.vt220_keys = strstr(new_cfg.term, "vt220");
+    term->vt220_keys = strstr(new_cfg.term, "vt220");
 }
 
 static void
-scrollback_push(uchar *line)
+scrollback_push(struct term* term, uchar *line)
 {
-  if (term.sblines == term.sblen) {
+  if (term->sblines == term->sblen) {
     // Need to make space for the new line.
-    if (term.sblen < cfg.scrollback_lines) {
+    if (term->sblen < cfg.scrollback_lines) {
       // Expand buffer
-      assert(term.sbpos == 0);
-      int new_sblen = min(cfg.scrollback_lines, term.sblen * 3 + 1024);
-      term.scrollback = renewn(term.scrollback, new_sblen);
-      term.sbpos = term.sblen;
-      term.sblen = new_sblen;
+      assert(term->sbpos == 0);
+      int new_sblen = min(cfg.scrollback_lines, term->sblen * 3 + 1024);
+      term->scrollback = renewn(term->scrollback, new_sblen);
+      term->sbpos = term->sblen;
+      term->sblen = new_sblen;
     }
-    else if (term.sblines) {
+    else if (term->sblines) {
       // Throw away the oldest line
-      free(term.scrollback[term.sbpos]);
-      term.sblines--;
+      free(term->scrollback[term->sbpos]);
+      term->sblines--;
     }
     else
       return;
   }
-  assert(term.sblines < term.sblen);
-  assert(term.sbpos < term.sblen);
-  term.scrollback[term.sbpos++] = line;
-  if (term.sbpos == term.sblen)
-    term.sbpos = 0;
-  term.sblines++;
-  if (term.tempsblines < term.sblines)
-    term.tempsblines++;
+  assert(term->sblines < term->sblen);
+  assert(term->sbpos < term->sblen);
+  term->scrollback[term->sbpos++] = line;
+  if (term->sbpos == term->sblen)
+    term->sbpos = 0;
+  term->sblines++;
+  if (term->tempsblines < term->sblines)
+    term->tempsblines++;
 }
 
 static uchar *
-scrollback_pop(void)
+scrollback_pop(struct term* term)
 {
-  assert(term.sblines > 0);
-  assert(term.sbpos < term.sblen);
-  term.sblines--;
-  if (term.tempsblines)
-    term.tempsblines--;
-  if (term.sbpos == 0)
-    term.sbpos = term.sblen;
-  return term.scrollback[--term.sbpos];
+  assert(term->sblines > 0);
+  assert(term->sbpos < term->sblen);
+  term->sblines--;
+  if (term->tempsblines)
+    term->tempsblines--;
+  if (term->sbpos == 0)
+    term->sbpos = term->sblen;
+  return term->scrollback[--term->sbpos];
 }
 
 /*
  * Clear the scrollback.
  */
 void
-term_clear_scrollback(void)
+term_clear_scrollback(struct term* term)
 {
-  while (term.sblines)
-    free(scrollback_pop());
-  free(term.scrollback);
-  term.scrollback = 0;
-  term.sblen = term.sblines = term.sbpos = 0;
-  term.tempsblines = 0;
-  term.disptop = 0;
+  while (term->sblines)
+    free(scrollback_pop(term));
+  free(term->scrollback);
+  term->scrollback = 0;
+  term->sblen = term->sblines = term->sbpos = 0;
+  term->tempsblines = 0;
+  term->disptop = 0;
 }
 
 /*
  * Set up the terminal for a given size.
  */
 void
-term_resize(int newrows, int newcols)
+term_resize(struct term* term, int newrows, int newcols)
 {
-  bool on_alt_screen = term.on_alt_screen;
-  term_switch_screen(0, false);
+  bool on_alt_screen = term->on_alt_screen;
+  term_switch_screen(term, 0, false);
 
-  term.selected = false;
+  term->selected = false;
 
-  term.marg_top = 0;
-  term.marg_bot = newrows - 1;
+  term->marg_top = 0;
+  term->marg_bot = newrows - 1;
 
  /*
   * Resize the screen and scrollback. We only need to shift
@@ -305,20 +308,20 @@ term_resize(int newrows, int newcols)
   *    away.
   */
 
-  termlines *lines = term.lines;
-  term_cursor *curs = &term.curs;
-  term_cursor *saved_curs = &term.saved_cursors[term.on_alt_screen];
+  termlines *lines = term->lines;
+  term_cursor *curs = &term->curs;
+  term_cursor *saved_curs = &term->saved_cursors[term->on_alt_screen];
 
   // Shrink the screen if newrows < rows
-  if (newrows < term.rows) {
-    int removed = term.rows - newrows;
-    int destroy = min(removed, term.rows - (curs->y + 1));
+  if (newrows < term->rows) {
+    int removed = term->rows - newrows;
+    int destroy = min(removed, term->rows - (curs->y + 1));
     int store = removed - destroy;
 
     // Push removed lines into scrollback
     for (int i = 0; i < store; i++) {
       termline *line = lines[i];
-      scrollback_push(compressline(line));
+      scrollback_push(term, compressline(line));
       freeline(line);
     }
 
@@ -326,7 +329,7 @@ term_resize(int newrows, int newcols)
     memmove(lines, lines + store, newrows * sizeof(termline *));
 
     // Destroy removed lines below the cursor
-    for (int i = term.rows - destroy; i < term.rows; i++)
+    for (int i = term->rows - destroy; i < term->rows; i++)
       freeline(lines[i]);
 
     // Adjust cursor position
@@ -334,24 +337,24 @@ term_resize(int newrows, int newcols)
     saved_curs->y = max(0, saved_curs->y - store);
   }
 
-  term.lines = lines = renewn(lines, newrows);
+  term->lines = lines = renewn(lines, newrows);
 
   // Expand the screen if newrows > rows
-  if (newrows > term.rows) {
-    int added = newrows - term.rows;
-    int restore = min(added, term.tempsblines);
+  if (newrows > term->rows) {
+    int added = newrows - term->rows;
+    int restore = min(added, term->tempsblines);
     int create = added - restore;
 
     // Fill bottom of screen with blank lines
     for (int i = newrows - create; i < newrows; i++)
-      lines[i] = newline(newcols, false);
+      lines[i] = newline(newcols, basic_erase_char);
 
     // Move existing lines down
-    memmove(lines + restore, lines, term.rows * sizeof(termline *));
+    memmove(lines + restore, lines, term->rows * sizeof(termline *));
 
     // Restore lines from scrollback
     for (int i = restore; i--;) {
-      uchar *cline = scrollback_pop();
+      uchar *cline = scrollback_pop(term);
       termline *line = decompressline(cline, null);
       free(cline);
       line->temporary = false;  /* reconstituted line is now real */
@@ -368,14 +371,14 @@ term_resize(int newrows, int newcols)
     resizeline(lines[i], newcols);
 
   // Make a new displayed text buffer.
-  if (term.displines) {
-    for (int i = 0; i < term.rows; i++)
-      freeline(term.displines[i]);
+  if (term->displines) {
+    for (int i = 0; i < term->rows; i++)
+      freeline(term->displines[i]);
   }
-  term.displines = renewn(term.displines, newrows);
+  term->displines = renewn(term->displines, newrows);
   for (int i = 0; i < newrows; i++) {
-    termline *line = newline(newcols, false);
-    term.displines[i] = line;
+    termline *line = newline(newcols, basic_erase_char);
+    term->displines[i] = line;
     for (int j = 0; j < newcols; j++) {
       line->chars[j].attr = CATTR_DEFAULT;
       line->chars[j].attr.attr = ATTR_INVALID;
@@ -383,19 +386,19 @@ term_resize(int newrows, int newcols)
   }
 
   // Make a new alternate screen.
-  lines = term.other_lines;
+  lines = term->other_lines;
   if (lines) {
-    for (int i = 0; i < term.rows; i++)
+    for (int i = 0; i < term->rows; i++)
       freeline(lines[i]);
   }
-  term.other_lines = lines = renewn(lines, newrows);
+  term->other_lines = lines = renewn(lines, newrows);
   for (int i = 0; i < newrows; i++)
-    lines[i] = newline(newcols, true);
+    lines[i] = newline(newcols, term->erase_char);
 
   // Reset tab stops
-  term.tabs = renewn(term.tabs, newcols);
-  for (int i = (term.cols > 0 ? term.cols : 0); i < newcols; i++)
-    term.tabs[i] = (i % 8 == 0);
+  term->tabs = renewn(term->tabs, newcols);
+  for (int i = (term->cols > 0 ? term->cols : 0); i < newcols; i++)
+    term->tabs[i] = (i % 8 == 0);
 
   // Check that the cursor positions are still valid.
   assert(0 <= curs->y && curs->y < newrows);
@@ -404,12 +407,12 @@ term_resize(int newrows, int newcols)
 
   curs->wrapnext = false;
 
-  term.disptop = 0;
+  term->disptop = 0;
 
-  term.rows = newrows;
-  term.cols = newcols;
+  term->rows = newrows;
+  term->cols = newcols;
 
-  term_switch_screen(on_alt_screen, false);
+  term_switch_screen(term, on_alt_screen, false);
 }
 
 /*
@@ -419,19 +422,19 @@ term_resize(int newrows, int newcols)
  * alternate screen completely.
  */
 void
-term_switch_screen(bool to_alt, bool reset)
+term_switch_screen(struct term* term, bool to_alt, bool reset)
 {
-  if (to_alt == term.on_alt_screen)
+  if (to_alt == term->on_alt_screen)
     return;
 
-  term.on_alt_screen = to_alt;
+  term->on_alt_screen = to_alt;
 
-  termlines *oldlines = term.lines;
-  term.lines = term.other_lines;
-  term.other_lines = oldlines;
+  termlines *oldlines = term->lines;
+  term->lines = term->other_lines;
+  term->other_lines = oldlines;
 
   if (to_alt && reset)
-    term_erase(false, false, true, true);
+    term_erase(term, false, false, true, true);
 }
 
 /*
@@ -454,14 +457,14 @@ term_switch_screen(bool to_alt, bool reset)
  * character of the pair.
  */
 void
-term_check_boundary(int x, int y)
+term_check_boundary(struct term* term, int x, int y)
 {
  /* Validate input coordinates, just in case. */
-  if (x == 0 || x > term.cols)
+  if (x == 0 || x > term->cols)
     return;
 
-  termline *line = term.lines[y];
-  if (x == term.cols)
+  termline *line = term->lines[y];
+  if (x == term->cols)
     line->attr &= ~LATTR_WRAPPED2;
   else if (line->chars[x].chr == UCSWIDE) {
     clear_cc(line, x - 1);
@@ -477,7 +480,7 @@ term_check_boundary(int x, int y)
  * affect the scrollback buffer.
  */
 void
-term_do_scroll(int topline, int botline, int lines, bool sb)
+term_do_scroll(struct term* term, int topline, int botline, int lines, bool sb)
 {
   assert(botline >= topline && lines != 0);
 
@@ -495,8 +498,8 @@ term_do_scroll(int topline, int botline, int lines, bool sb)
   int moved_lines = lines_in_region - lines;
 
   // Useful pointers to the top and (one below the) bottom lines.
-  termline **top = term.lines + topline;
-  termline **bot = term.lines + botline;
+  termline **top = term->lines + topline;
+  termline **bot = term->lines + botline;
 
   // Reuse lines that are being scrolled out of the scroll region,
   // clearing their content.
@@ -504,7 +507,7 @@ term_do_scroll(int topline, int botline, int lines, bool sb)
   void recycle(termline **src) {
     memcpy(recycled, src, sizeof recycled);
     for (int i = 0; i < lines; i++)
-      clearline(recycled[i]);
+      clearline(recycled[i], term->erase_char);
   }
 
   if (down) {
@@ -515,29 +518,29 @@ term_do_scroll(int topline, int botline, int lines, bool sb)
 
     // Move selection markers if they're within the scroll region
     void scroll_pos(pos *p) {
-      if (!term.show_other_screen && p->y >= topline && p->y < botline) {
+      if (!term->show_other_screen && p->y >= topline && p->y < botline) {
         if ((p->y += lines) >= botline)
           *p = (pos){.y = botline, .x = 0};
       }
     }
-    scroll_pos(&term.sel_start);
-    scroll_pos(&term.sel_anchor);
-    scroll_pos(&term.sel_end);
+    scroll_pos(&term->sel_start);
+    scroll_pos(&term->sel_anchor);
+    scroll_pos(&term->sel_end);
   }
   else {
     int seltop = topline;
 
     // Only push lines into the scrollback when scrolling off the top of the
     // normal screen and scrollback is actually enabled.
-    if (sb && topline == 0 && !term.on_alt_screen && cfg.scrollback_lines) {
+    if (sb && topline == 0 && !term->on_alt_screen && cfg.scrollback_lines) {
       for (int i = 0; i < lines; i++)
-        scrollback_push(compressline(term.lines[i]));
+        scrollback_push(term, compressline(term->lines[i]));
 
       // Shift viewpoint accordingly if user is looking at scrollback
-      if (term.disptop < 0)
-        term.disptop = max(term.disptop - lines, -term.sblines);
+      if (term->disptop < 0)
+        term->disptop = max(term->disptop - lines, -term->sblines);
 
-      seltop = -term.sblines;
+      seltop = -term->sblines;
     }
 
     // Move up remaining lines and push in the recycled lines
@@ -547,14 +550,14 @@ term_do_scroll(int topline, int botline, int lines, bool sb)
 
     // Move selection markers if they're within the scroll region
     void scroll_pos(pos *p) {
-      if (!term.show_other_screen && p->y >= seltop && p->y < botline) {
+      if (!term->show_other_screen && p->y >= seltop && p->y < botline) {
         if ((p->y -= lines) < seltop)
           *p = (pos){.y = seltop, .x = 0};
       }
     }
-    scroll_pos(&term.sel_start);
-    scroll_pos(&term.sel_anchor);
-    scroll_pos(&term.sel_end);
+    scroll_pos(&term->sel_start);
+    scroll_pos(&term->sel_anchor);
+    scroll_pos(&term->sel_end);
   }
 }
 
@@ -564,9 +567,9 @@ term_do_scroll(int topline, int botline, int lines, bool sb)
  * whole line, or parts thereof.
  */
 void
-term_erase(bool selective, bool line_only, bool from_begin, bool to_end)
+term_erase(struct term* term, bool selective, bool line_only, bool from_begin, bool to_end)
 {
-  term_cursor *curs = &term.curs;
+  term_cursor *curs = &term->curs;
   pos start, end;
 
   if (from_begin)
@@ -575,12 +578,12 @@ term_erase(bool selective, bool line_only, bool from_begin, bool to_end)
     start = (pos){.y = curs->y, .x = curs->x};
 
   if (to_end)
-    end = (pos){.y = line_only ? curs->y + 1 : term.rows, .x = 0};
+    end = (pos){.y = line_only ? curs->y + 1 : term->rows, .x = 0};
   else
     end = (pos){.y = curs->y, .x = curs->x}, incpos(end);
 
   if (!from_begin || !to_end)
-    term_check_boundary(curs->x, curs->y);
+    term_check_boundary(term, curs->x, curs->y);
 
  /* Lines scrolled away shouldn't be brought back on if the terminal resizes. */
   bool erasing_lines_from_top =
@@ -591,64 +594,64 @@ term_erase(bool selective, bool line_only, bool from_begin, bool to_end)
     * we're fully erasing them, erase by scrolling and keep the
     * lines in the scrollback. */
     int scrolllines = end.y;
-    if (end.y == term.rows) {
+    if (end.y == term->rows) {
      /* Shrink until we find a non-empty row. */
-      scrolllines = term_last_nonempty_line() + 1;
+      scrolllines = term_last_nonempty_line(term) + 1;
     }
     if (scrolllines > 0)
-      term_do_scroll(0, scrolllines - 1, scrolllines, true);
+      term_do_scroll(term, 0, scrolllines - 1, scrolllines, true);
 
    /* After an erase of lines from the top of the screen, we shouldn't
     * bring the lines back again if the terminal enlarges (since the user or
     * application has explictly thrown them away). */
-    if (!term.on_alt_screen)
-      term.tempsblines = 0;
+    if (!term->on_alt_screen)
+      term->tempsblines = 0;
   }
   else {
-    termline *line = term.lines[start.y];
+    termline *line = term->lines[start.y];
     while (poslt(start, end)) {
-      if (start.x == term.cols) {
+      if (start.x == term->cols) {
         if (line_only)
           line->attr &= ~(LATTR_WRAPPED | LATTR_WRAPPED2);
         else
           line->attr = LATTR_NORM;
       }
       else if (!selective || !(line->chars[start.x].attr.attr & ATTR_PROTECTED))
-        line->chars[start.x] = term.erase_char;
-      if (incpos(start) && start.y < term.rows)
-        line = term.lines[start.y];
+        line->chars[start.x] = term->erase_char;
+      if (incpos(start) && start.y < term->rows)
+        line = term->lines[start.y];
     }
   }
 }
 
 void
-term_paint(void)
+term_paint(struct term* term)
 {
  /* The display line that the cursor is on, or -1 if the cursor is invisible. */
   int curs_y =
-    term.cursor_on && !term.show_other_screen
-    ? term.curs.y - term.disptop : -1;
+    term->cursor_on && !term->show_other_screen
+    ? term->curs.y - term->disptop : -1;
 
-  for (int i = 0; i < term.rows; i++) {
+  for (int i = 0; i < term->rows; i++) {
     pos scrpos;
-    scrpos.y = i + term.disptop;
+    scrpos.y = i + term->disptop;
 
    /* Do Arabic shaping and bidi. */
-    termline *line = fetch_line(scrpos.y);
-    termchar *chars = term_bidi_line(line, i);
-    int *backward = chars ? term.post_bidi_cache[i].backward : 0;
-    int *forward = chars ? term.post_bidi_cache[i].forward : 0;
+    termline *line = fetch_line(term, scrpos.y);
+    termchar *chars = term_bidi_line(term, line, i);
+    int *backward = chars ? term->post_bidi_cache[i].backward : 0;
+    int *forward = chars ? term->post_bidi_cache[i].forward : 0;
     chars = chars ?: line->chars;
 
-    termline *displine = term.displines[i];
+    termline *displine = term->displines[i];
     termchar *dispchars = displine->chars;
-    termchar newchars[term.cols];
+    termchar newchars[term->cols];
 
   /*
     * First loop: work along the line deciding what we want
     * each character cell to look like.
     */
-    for (int j = 0; j < term.cols; j++) {
+    for (int j = 0; j < term->cols; j++) {
       termchar *d = chars + j;
       scrpos.x = backward ? backward[j] : j;
       wchar tchar = d->chr;
@@ -660,22 +663,22 @@ term_paint(void)
       if (tchar == 0x2010)
         tchar = '-';
 
-      if (j < term.cols - 1 && d[1].chr == UCSWIDE)
+      if (j < term->cols - 1 && d[1].chr == UCSWIDE)
         tattr.attr |= ATTR_WIDE;
 
      /* Video reversing things */
       bool selected =
-        term.selected &&
-        ( term.sel_rect
-          ? posPle(term.sel_start, scrpos) && posPlt(scrpos, term.sel_end)
-          : posle(term.sel_start, scrpos) && poslt(scrpos, term.sel_end)
+        term->selected &&
+        ( term->sel_rect
+          ? posPle(term->sel_start, scrpos) && posPlt(scrpos, term->sel_end)
+          : posle(term->sel_start, scrpos) && poslt(scrpos, term->sel_end)
         );
-      if (term.in_vbell || selected)
+      if (term->in_vbell || selected)
         tattr.attr ^= ATTR_REVERSE;
 
      /* 'Real' blinking ? */
-      if (term.blink_is_real && (tattr.attr & ATTR_BLINK)) {
-        if (term.has_focus && term.tblinker)
+      if (term->blink_is_real && (tattr.attr & ATTR_BLINK)) {
+        if (term->has_focus && term->tblinker)
           tchar = ' ';
         tattr.attr &= ~ATTR_BLINK;
       }
@@ -704,7 +707,7 @@ term_paint(void)
       * moving it one column to the left when it's on the right half of a
       * wide character.
       */
-      int curs_x = term.curs.x;
+      int curs_x = term->curs.x;
       if (forward)
         curs_x = forward[curs_x];
       if (curs_x > 0 && chars[curs_x].chr == UCSWIDE)
@@ -712,11 +715,11 @@ term_paint(void)
 
      /* Determine cursor cell attributes. */
       newchars[curs_x].attr.attr |=
-        (!term.has_focus ? TATTR_PASCURS :
-         term.cblinker || !term_cursor_blinks() ? TATTR_ACTCURS : 0) |
-        (term.curs.wrapnext ? TATTR_RIGHTCURS : 0);
+        (!term->has_focus ? TATTR_PASCURS :
+         term->cblinker || !term_cursor_blinks(term) ? TATTR_ACTCURS : 0) |
+        (term->curs.wrapnext ? TATTR_RIGHTCURS : 0);
 
-      if (term.cursor_invalid)
+      if (term->cursor_invalid)
         dispchars[curs_x].attr.attr |= ATTR_INVALID;
     }
 
@@ -736,7 +739,7 @@ term_paint(void)
     */
     int laststart = 0;
     bool dirtyrect = false;
-    for (int j = 0; j < term.cols; j++) {
+    for (int j = 0; j < term->cols; j++) {
       if (dispchars[j].attr.attr & DATTR_STARTRUN) {
         laststart = j;
         dirtyrect = false;
@@ -760,7 +763,7 @@ term_paint(void)
    /*
     * Finally, loop once more and actually do the drawing.
     */
-    wchar text[max(term.cols, 16)];
+    wchar text[max(term->cols, 16)];
     int textlen = 0;
     bool dirty_run = (line->attr != displine->attr);
     bool dirty_line = dirty_run;
@@ -769,7 +772,7 @@ term_paint(void)
 
     displine->attr = line->attr;
 
-    for (int j = 0; j < term.cols; j++) {
+    for (int j = 0; j < term->cols; j++) {
       termchar *d = chars + j;
       cattr tattr = newchars[j].attr;
       wchar tchar = newchars[j].chr;
@@ -829,7 +832,7 @@ term_paint(void)
       }
 
      /* If it's a wide char step along to the next one. */
-      if ((tattr.attr & ATTR_WIDE) && ++j < term.cols) {
+      if ((tattr.attr & ATTR_WIDE) && ++j < term->cols) {
         d++;
        /*
         * By construction above, the cursor should not
@@ -846,28 +849,28 @@ term_paint(void)
     release_line(line);
   }
 
-  term.cursor_invalid = false;
+  term->cursor_invalid = false;
 }
 
 void
-term_invalidate(int left, int top, int right, int bottom)
+term_invalidate(struct term* term, int left, int top, int right, int bottom)
 {
   if (left < 0)
     left = 0;
   if (top < 0)
     top = 0;
-  if (right >= term.cols)
-    right = term.cols - 1;
-  if (bottom >= term.rows)
-    bottom = term.rows - 1;
+  if (right >= term->cols)
+    right = term->cols - 1;
+  if (bottom >= term->rows)
+    bottom = term->rows - 1;
 
-  for (int i = top; i <= bottom && i < term.rows; i++) {
-    if ((term.displines[i]->attr & LATTR_MODE) == LATTR_NORM)
-      for (int j = left; j <= right && j < term.cols; j++)
-        term.displines[i]->chars[j].attr.attr |= ATTR_INVALID;
+  for (int i = top; i <= bottom && i < term->rows; i++) {
+    if ((term->displines[i]->attr & LATTR_MODE) == LATTR_NORM)
+      for (int j = left; j <= right && j < term->cols; j++)
+        term->displines[i]->chars[j].attr.attr |= ATTR_INVALID;
     else
-      for (int j = left / 2; j <= right / 2 + 1 && j < term.cols; j++)
-        term.displines[i]->chars[j].attr.attr |= ATTR_INVALID;
+      for (int j = left / 2; j <= right / 2 + 1 && j < term->cols; j++)
+        term->displines[i]->chars[j].attr.attr |= ATTR_INVALID;
   }
 }
 
@@ -879,32 +882,32 @@ term_invalidate(int left, int top, int right, int bottom)
  * relative to the current position.
  */
 void
-term_scroll(int rel, int where)
+term_scroll(struct term* term, int rel, int where)
 {
-  int sbtop = -sblines();
-  term.disptop = (rel < 0 ? 0 : rel > 0 ? sbtop : term.disptop) + where;
-  if (term.disptop < sbtop)
-    term.disptop = sbtop;
-  if (term.disptop > 0)
-    term.disptop = 0;
-  win_update();
+  int sbtop = -sblines(term);
+  term->disptop = (rel < 0 ? 0 : rel > 0 ? sbtop : term->disptop) + where;
+  if (term->disptop < sbtop)
+    term->disptop = sbtop;
+  if (term->disptop > 0)
+    term->disptop = 0;
+  term->update_window_callback();
 }
 
 void
-term_set_focus(bool has_focus)
+term_set_focus(struct term* term, bool has_focus)
 {
-  if (has_focus != term.has_focus) {
-    term.has_focus = has_focus;
-    term_schedule_cblink();
-    if (term.report_focus)
-      child_write(has_focus ? "\e[I" : "\e[O", 3);
+  if (has_focus != term->has_focus) {
+    term->has_focus = has_focus;
+    term_schedule_cblink(term);
+    if (term->report_focus)
+      child_write(term->child, has_focus ? "\e[I" : "\e[O", 3);
   }
 }
 
 void
-term_update_cs()
+term_update_cs(struct term* term)
 {
-  term_cursor *curs = &term.curs;
+  term_cursor *curs = &term->curs;
   cs_set_mode(
     curs->oem_acs ? CSM_OEM :
     curs->utf ? CSM_UTF8 :
@@ -913,22 +916,22 @@ term_update_cs()
 }
 
 int
-term_cursor_type(void)
+term_cursor_type(struct term* term)
 {
-  return term.cursor_type == -1 ? cfg.cursor_type : term.cursor_type;
+  return term->cursor_type == -1 ? cfg.cursor_type : term->cursor_type;
 }
 
 bool
-term_cursor_blinks(void)
+term_cursor_blinks(struct term* term)
 {
-  return term.cursor_blinks == -1 ? cfg.cursor_blinks : term.cursor_blinks;
+  return term->cursor_blinks == -1 ? cfg.cursor_blinks : term->cursor_blinks;
 }
 
 void
-term_hide_cursor(void)
+term_hide_cursor(struct term* term)
 {
-  if (term.cursor_on) {
-    term.cursor_on = false;
-    win_update();
+  if (term->cursor_on) {
+    term->cursor_on = false;
+    term->update_window_callback();
   }
 }

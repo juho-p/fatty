@@ -31,19 +31,13 @@ int forkpty(int *, char *, struct termios *, struct winsize *);
 #include <winuser.h>
 #endif
 
-char *home, *cmd;
-
-static pid_t pid;
-static bool killed;
-static int pty_fd = -1, log_fd = -1, win_fd;
-
 static void
-error(char *action)
+error(struct term* term, char *action)
 {
   char *msg;
   int len = asprintf(&msg, "Failed to %s: %s.", action, strerror(errno));
   if (len > 0) {
-    term_write(msg, len);
+    term_write(term, msg, len);
     free(msg);
   }
 }
@@ -51,15 +45,23 @@ error(char *action)
 static void
 sigexit(int sig)
 {
-  if (pid)
-    kill(-pid, SIGHUP);
+  //if (pid)
+  //  kill(-pid, SIGHUP);
+  // TODO: Kill children
   signal(sig, SIG_DFL);
   kill(getpid(), sig);
 }
 
 void
-child_create(char *argv[], struct winsize *winp)
+child_create(struct child* child, struct term* term,
+    char *argv[], struct winsize *winp)
 {
+  int pid;
+
+  child->pty_fd = -1;
+  child->log_fd = -1;
+  child->term = term;
+
   string lang = cs_lang();
 
   // xterm and urxvt ignore SIGHUP, so let's do the same.
@@ -70,17 +72,17 @@ child_create(char *argv[], struct winsize *winp)
   signal(SIGQUIT, sigexit);
 
   // Create the child process and pseudo terminal.
-  pid = forkpty(&pty_fd, 0, 0, winp);
+  pid = forkpty(&child->pty_fd, 0, 0, winp);
   if (pid < 0) {
-    pid = 0;
+    child->pid = pid = 0;
     bool rebase_prompt = (errno == EAGAIN);
-    error("fork child process");
+    error(term, "fork child process");
     if (rebase_prompt) {
       static const char msg[] =
         "\r\nDLL rebasing may be required. See 'rebaseall --help'.";
-      term_write(msg, sizeof msg - 1);
+      term_write(term, msg, sizeof msg - 1);
     }
-    term_hide_cursor();
+    term_hide_cursor(term);
   }
   else if (!pid) { // Child process.
 #if CYGWIN_VERSION_DLL_MAJOR < 1007
@@ -141,10 +143,10 @@ child_create(char *argv[], struct winsize *winp)
     tcsetattr(0, TCSANOW, &attr);
 
     // Invoke command
-    execvp(cmd, argv);
+    execvp(child->cmd, argv);
 
     // If we get here, exec failed.
-    fprintf(stderr, "%s: %s\r\n", cmd, strerror(errno));
+    fprintf(stderr, "%s: %s\r\n", child->cmd, strerror(errno));
 
 #if CYGWIN_VERSION_DLL_MAJOR < 1005
     // Before Cygwin 1.5, the message above doesn't appear if we exit
@@ -155,10 +157,12 @@ child_create(char *argv[], struct winsize *winp)
     exit(255);
   }
   else { // Parent process.
-    fcntl(pty_fd, F_SETFL, O_NONBLOCK);
+    child->pid = pid;
 
+    fcntl(child->pty_fd, F_SETFL, O_NONBLOCK);
+    
     if (cfg.utmp) {
-      char *dev = ptsname(pty_fd);
+      char *dev = ptsname(child->pty_fd);
       if (dev) {
         struct utmp ut;
         memset(&ut, 0, sizeof ut);
@@ -183,40 +187,40 @@ child_create(char *argv[], struct winsize *winp)
     }
   }
 
-  win_fd = open("/dev/windows", O_RDONLY);
+  child->win_fd = open("/dev/windows", O_RDONLY);
 
   // Open log file if any
   if (*cfg.log) {
     if (!strcmp(cfg.log, "-"))
-      log_fd = fileno(stdout);
+      child->log_fd = fileno(stdout);
     else {
-      log_fd = open(cfg.log, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-      if (log_fd < 0)
-        error("open log file");
+      child->log_fd = open(cfg.log, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+      if (child->log_fd < 0)
+        error(term, "open log file");
     }
   }
 }
 
 void
-child_proc(void)
+child_proc(struct child* child)
 {
   for (;;) {
-    if (term.paste_buffer)
-      term_send_paste();
+    if (child->term->paste_buffer)
+      term_send_paste(child->term);
 
     struct timeval timeout = {0, 100000}, *timeout_p = 0;
     fd_set fds;
     FD_ZERO(&fds);
-    FD_SET(win_fd, &fds);
-    if (pty_fd >= 0)
-      FD_SET(pty_fd, &fds);
-    else if (pid) {
+    FD_SET(child->win_fd, &fds);
+    if (child->pty_fd >= 0)
+      FD_SET(child->pty_fd, &fds);
+    else if (child->pid) {
       int status;
-      if (waitpid(pid, &status, WNOHANG) == pid) {
-        pid = 0;
+      if (waitpid(child->pid, &status, WNOHANG) == child->pid) {
+        child->pid = 0;
 
         // Decide whether we want to exit now or later
-        if (killed || cfg.hold == HOLD_NEVER)
+        if (child->killed || cfg.hold == HOLD_NEVER)
           exit(0);
         else if (cfg.hold == HOLD_START) {
           if (WIFSIGNALED(status) || WEXITSTATUS(status) != 255)
@@ -241,30 +245,30 @@ child_proc(void)
         if (WIFEXITED(status)) {
           int code = WEXITSTATUS(status);
           if (code && cfg.hold != HOLD_START)
-            l = asprintf(&s, "%s: Exit %i", cmd, code);
+            l = asprintf(&s, "%s: Exit %i", child->cmd, code);
         }
         else if (WIFSIGNALED(status))
-          l = asprintf(&s, "%s: %s", cmd, strsignal(WTERMSIG(status)));
+          l = asprintf(&s, "%s: %s", child->cmd, strsignal(WTERMSIG(status)));
 
         if (s)
-          term_write(s, l);
+          term_write(child->term, s, l);
       }
       else // Pty gone, but process still there: keep checking
         timeout_p = &timeout;
     }
 
-    if (select(win_fd + 1, &fds, 0, 0, timeout_p) > 0) {
-      if (pty_fd >= 0 && FD_ISSET(pty_fd, &fds)) {
+    if (select(child->win_fd + 1, &fds, 0, 0, timeout_p) > 0) {
+      if (child->pty_fd >= 0 && FD_ISSET(child->pty_fd, &fds)) {
 #if CYGWIN_VERSION_DLL_MAJOR >= 1005
         static char buf[4096];
-        int len = read(pty_fd, buf, sizeof buf);
+        int len = read(child->pty_fd, buf, sizeof buf);
 #else
         // Pty devices on old Cygwin version deliver only 4 bytes at a time,
         // so call read() repeatedly until we have a worthwhile haul.
         static char buf[512];
         uint len = 0;
         do {
-          int ret = read(pty_fd, buf + len, sizeof buf - len);
+          int ret = read(child->pty_fd, buf + len, sizeof buf - len);
           if (ret > 0)
             len += ret;
           else
@@ -272,41 +276,41 @@ child_proc(void)
         } while (len < sizeof buf);
 #endif
         if (len > 0) {
-          term_write(buf, len);
-          if (log_fd >= 0)
-            write(log_fd, buf, len);
+          term_write(child->term, buf, len);
+          if (child->log_fd >= 0)
+            write(child->log_fd, buf, len);
         }
         else {
-          pty_fd = -1;
-          term_hide_cursor();
+          child->pty_fd = -1;
+          term_hide_cursor(child->term);
         }
       }
-      if (FD_ISSET(win_fd, &fds))
+      if (FD_ISSET(child->win_fd, &fds))
         return;
     }
   }
 }
 
 void
-child_kill(bool point_blank)
+child_kill(struct child* child, bool point_blank)
 {
-  if (!pid ||
-      kill(-pid, point_blank ? SIGKILL : SIGHUP) < 0 ||
+  if (!child->pid ||
+      kill(-child->pid, point_blank ? SIGKILL : SIGHUP) < 0 ||
       point_blank)
     exit(0);
-  killed = true;
+  child->killed = true;
 }
 
 bool
-child_is_alive(void)
+child_is_alive(struct child* child)
 {
-    return pid;
+    return child->pid;
 }
 
 bool
-child_is_parent(void)
+child_is_parent(struct child* child)
 {
-  if (!pid)
+  if (!child->pid)
     return false;
   DIR *d = opendir("/proc");
   if (!d)
@@ -324,7 +328,7 @@ child_is_parent(void)
       pid_t ppid = 0;
       fscanf(f, "%u", &ppid);
       fclose(f);
-      if (ppid == pid) {
+      if (ppid == child->pid) {
         res = true;
         break;
       }
@@ -335,54 +339,54 @@ child_is_parent(void)
 }
 
 void
-child_write(const char *buf, uint len)
+child_write(struct child* child, const char *buf, uint len)
 {
-  if (pty_fd >= 0)
-    write(pty_fd, buf, len);
+  if (child->pty_fd >= 0)
+    write(child->pty_fd, buf, len);
 }
 
 void
-child_printf(const char *fmt, ...)
+child_printf(struct child* child, const char *fmt, ...)
 {
-  if (pty_fd >= 0) {
+  if (child->pty_fd >= 0) {
     va_list va;
     va_start(va, fmt);
     char *s;
     int len = vasprintf(&s, fmt, va);
     va_end(va);
     if (len >= 0)
-      write(pty_fd, s, len);
+      write(child->pty_fd, s, len);
     free(s);
   }
 }
 
 void
-child_send(const char *buf, uint len)
+child_send(struct child* child, const char *buf, uint len)
 {
-  term_reset_screen();
-  if (term.echoing)
-    term_write(buf, len);
-  child_write(buf, len);
+  term_reset_screen(child->term);
+  if (child->term->echoing)
+    term_write(child->term, buf, len);
+  child_write(child, buf, len);
 }
 
 void
-child_sendw(const wchar *ws, uint wlen)
+child_sendw(struct child* child, const wchar *ws, uint wlen)
 {
   char s[wlen * cs_cur_max];
   int len = cs_wcntombn(s, ws, sizeof s, wlen);
   if (len > 0)
-    child_send(s, len);
+    child_send(child, s, len);
 }
 
 void
-child_resize(struct winsize *winp)
+child_resize(struct child* child, struct winsize *winp)
 {
-  if (pty_fd >= 0)
-    ioctl(pty_fd, TIOCSWINSZ, winp);
+  if (child->pty_fd >= 0)
+    ioctl(child->pty_fd, TIOCSWINSZ, winp);
 }
 
 wstring
-child_conv_path(wstring wpath)
+child_conv_path(struct child* child, wstring wpath)
 {
   int wlen = wcslen(wpath);
   int len = wlen * cs_cur_max;
@@ -401,7 +405,7 @@ child_conv_path(wstring wpath)
       rest = "";
     char *base;
     if (!*name)
-      base = home;
+      base = child->home;
     else {
 #if CYGWIN_VERSION_DLL_MAJOR >= 1005
       // Find named user's home directory
@@ -420,9 +424,9 @@ child_conv_path(wstring wpath)
     // requires the /proc filesystem, which isn't available before Cygwin 1.5.
 
     // Find pty's foreground process, if any. Fall back to child process.
-    int fg_pid = (pty_fd >= 0) ? tcgetpgrp(pty_fd) : 0;
+    int fg_pid = (child->pty_fd >= 0) ? tcgetpgrp(child->pty_fd) : 0;
     if (fg_pid <= 0)
-      fg_pid = pid;
+      fg_pid = child->pid;
 
     char *cwd = 0;
     if (fg_pid > 0) {
@@ -431,11 +435,11 @@ child_conv_path(wstring wpath)
       cwd = realpath(proc_cwd, 0);
     }
 
-    exp_path = asform("%s/%s", cwd ?: home, path);
+    exp_path = asform("%s/%s", cwd ?: child->home, path);
     free(cwd);
 #else
     // If we're lucky, the path is relative to the home directory.
-    exp_path = asform("%s/%s", home, path);
+    exp_path = asform("%s/%s", child->home, path);
 #endif
   }
   else
@@ -476,14 +480,14 @@ child_conv_path(wstring wpath)
 }
 
 void
-child_fork(int argc, char *argv[])
+child_fork(struct child* child, int argc, char *argv[])
 {
   if (fork() == 0) {
-    if (pty_fd >= 0)
-      close(pty_fd);
-    if (log_fd >= 0)
-      close(log_fd);
-    close(win_fd);
+    if (child->pty_fd >= 0)
+      close(child->pty_fd);
+    if (child->log_fd >= 0)
+      close(child->log_fd);
+    close(child->win_fd);
 
     // add child parameters
     int newparams = 4;
@@ -496,11 +500,11 @@ child_fork(int argc, char *argv[])
         // insert additional parameters here
         newargv[j++] = "-o";
         char parbuf1[28];
-        sprintf (parbuf1, "Rows=%d", term.rows);
+        sprintf (parbuf1, "Rows=%d", child->term->rows);
         newargv[j++] = parbuf1;
         newargv[j++] = "-o";
         char parbuf2[31];
-        sprintf (parbuf2, "Columns=%d", term.cols);
+        sprintf (parbuf2, "Columns=%d", child->term->cols);
         newargv[j++] = parbuf2;
       }
       newargv[j] = argv[i];

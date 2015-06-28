@@ -3,19 +3,32 @@
 
 #include <sys/termios.h>
 
-extern char *home, *cmd;
+struct term;
 
-void child_create(char *argv[], struct winsize *winp);
-void child_proc(void);
-void child_kill(bool point_blank);
-void child_write(const char *, uint len);
-void child_printf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
-void child_send(const char *, uint len);
-void child_sendw(const wchar *, uint len);
-void child_resize(struct winsize *winp);
-bool child_is_alive(void);
-bool child_is_parent(void);
-wstring child_conv_path(wstring);
-void child_fork(int argc, char *argv[]);
+struct child
+{
+  char *home, *cmd;
+
+  pid_t pid;
+  bool killed;
+  int pty_fd;
+  int win_fd;
+  int log_fd;
+  struct term* term;
+};
+
+void child_create(struct child* child, struct term* term,
+    char *argv[], struct winsize *winp);
+void child_proc(struct child* child);
+void child_kill(struct child* child, bool point_blank);
+void child_write(struct child* child, const char *, uint len);
+void child_printf(struct child* child, const char *fmt, ...) __attribute__((format(printf, 2, 3)));
+void child_send(struct child* child, const char *, uint len);
+void child_sendw(struct child* child, const wchar *, uint len);
+void child_resize(struct child* child, struct winsize *winp);
+bool child_is_alive(struct child* child);
+bool child_is_parent(struct child* child);
+wstring child_conv_path(struct child*, wstring);
+void child_fork(struct child* child, int argc, char *argv[]);
 
 #endif

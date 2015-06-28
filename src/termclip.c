@@ -37,9 +37,9 @@ clip_addchar(clip_workbuf * b, wchar chr, int attr)
 }
 
 static void
-get_selection(clip_workbuf *buf)
+get_selection(struct term* term, clip_workbuf *buf)
 {
-  pos start = term.sel_start, end = term.sel_end;
+  pos start = term->sel_start, end = term->sel_end;
   
   int old_top_x;
   int attr;
@@ -53,7 +53,7 @@ get_selection(clip_workbuf *buf)
 
   while (poslt(start, end)) {
     bool nl = false;
-    termline *line = fetch_line(start.y);
+    termline *line = fetch_line(term, start.y);
     pos nlpos;
 
    /*
@@ -62,7 +62,7 @@ get_selection(clip_workbuf *buf)
     * line...
     */
     nlpos.y = start.y;
-    nlpos.x = term.cols;
+    nlpos.x = term->cols;
 
    /*
     * ... move it backwards if there's unused space at the end
@@ -89,7 +89,7 @@ get_selection(clip_workbuf *buf)
     * column from a table doesn't fill with spaces on the
     * right.)
     */
-    if (term.sel_rect) {
+    if (term->sel_rect) {
       if (nlpos.x > end.x)
         nlpos.x = end.x;
       nl = (start.y < end.y);
@@ -125,7 +125,7 @@ get_selection(clip_workbuf *buf)
       clip_addchar(buf, '\n', 0);
     }
     start.y++;
-    start.x = term.sel_rect ? old_top_x : 0;
+    start.x = term->sel_rect ? old_top_x : 0;
 
     release_line(line);
   }
@@ -133,13 +133,13 @@ get_selection(clip_workbuf *buf)
 }
 
 void
-term_copy(void)
+term_copy(struct term* term)
 {
-  if (!term.selected)
+  if (!term->selected)
     return;
   
   clip_workbuf buf;
-  get_selection(&buf);
+  get_selection(term, &buf);
   
  /* Finally, transfer all that to the clipboard. */
   win_copy(buf.textbuf, buf.attrbuf, buf.bufpos);
@@ -148,12 +148,12 @@ term_copy(void)
 }
 
 void
-term_open(void)
+term_open(struct term* term)
 {
-  if (!term.selected)
+  if (!term->selected)
     return;
   clip_workbuf buf;
-  get_selection(&buf);
+  get_selection(term, &buf);
   free(buf.attrbuf);
   
   // Don't bother opening if it's all whitespace.
@@ -167,57 +167,57 @@ term_open(void)
 }
 
 void
-term_paste(wchar *data, uint len)
+term_paste(struct term* term, wchar *data, uint len)
 {
-  term_cancel_paste();
+  term_cancel_paste(term);
 
-  term.paste_buffer = newn(wchar, len);
-  term.paste_len = term.paste_pos = 0;
+  term->paste_buffer = newn(wchar, len);
+  term->paste_len = term->paste_pos = 0;
 
   // Copy data to the paste buffer, converting both Windows-style \r\n and
   // Unix-style \n line endings to \r, because that's what the Enter key sends.
   for (uint i = 0; i < len; i++) {
     wchar wc = data[i];
     if (wc != '\n')
-      term.paste_buffer[term.paste_len++] = wc;
+      term->paste_buffer[term->paste_len++] = wc;
     else if (i == 0 || data[i - 1] != '\r')
-      term.paste_buffer[term.paste_len++] = '\r';
+      term->paste_buffer[term->paste_len++] = '\r';
   }
   
-  if (term.bracketed_paste)
-    child_write("\e[200~", 6);
-  term_send_paste();
+  if (term->bracketed_paste)
+    child_write(term->child, "\e[200~", 6);
+  term_send_paste(term);
 }
 
 void
-term_cancel_paste(void)
+term_cancel_paste(struct term* term)
 {
-  if (term.paste_buffer) {
-    free(term.paste_buffer);
-    term.paste_buffer = 0;
-    if (term.bracketed_paste)
-      child_write("\e[201~", 6);
+  if (term->paste_buffer) {
+    free(term->paste_buffer);
+    term->paste_buffer = 0;
+    if (term->bracketed_paste)
+      child_write(term->child, "\e[201~", 6);
   }
 }
 
 void
-term_send_paste(void)
+term_send_paste(struct term* term)
 {
-  int i = term.paste_pos;
-  while (i < term.paste_len && term.paste_buffer[i++] != '\r');
-  child_sendw(term.paste_buffer + term.paste_pos, i - term.paste_pos);
-  if (i < term.paste_len)
-    term.paste_pos = i;
+  int i = term->paste_pos;
+  while (i < term->paste_len && term->paste_buffer[i++] != '\r');
+  child_sendw(term->child, term->paste_buffer + term->paste_pos, i - term->paste_pos);
+  if (i < term->paste_len)
+    term->paste_pos = i;
   else
-    term_cancel_paste();
+    term_cancel_paste(term);
 }
 
 void
-term_select_all(void)
+term_select_all(struct term* term)
 {
-  term.sel_start = (pos){-sblines(), 0};
-  term.sel_end = (pos){term_last_nonempty_line(), term.cols};
-  term.selected = true;
+  term->sel_start = (pos){-sblines(term), 0};
+  term->sel_end = (pos){term_last_nonempty_line(term), term->cols};
+  term->selected = true;
   if (cfg.copy_on_select)
-    term_copy();
+    term_copy(term);
 }

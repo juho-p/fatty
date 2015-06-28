@@ -6,6 +6,8 @@
 
 // Colour numbers
 
+struct term;
+
 typedef enum {
   // ANSI colours
   BLACK_I   = 0,
@@ -177,13 +179,13 @@ typedef struct {
   int *forward, *backward;      /* the permutations of line positions */
 } bidi_cache_entry;
 
-termline *newline(int cols, int bce);
+termline *newline(int cols, termchar erase_char);
 void freeline(termline *);
-void clearline(termline *);
+void clearline(termline *, termchar erase_char);
 void resizeline(termline *, int);
 
-int sblines(void);
-termline *fetch_line(int y);
+int sblines(struct term* term);
+termline *fetch_line(struct term* term, int y);
 void release_line(termline *);
 
 int termchars_equal(termchar *a, termchar *b);
@@ -198,7 +200,7 @@ void clear_cc(termline *, int col);
 uchar *compressline(termline *);
 termline *decompressline(uchar *, int *bytes_used);
 
-termchar *term_bidi_line(termline *, int scr_y);
+termchar *term_bidi_line(struct term* term, termline *, int scr_y);
 
 /* Traditional terminal character sets */
 typedef enum {
@@ -363,34 +365,36 @@ struct term {
   int wcFromTo_size;
   bidi_cache_entry *pre_bidi_cache, *post_bidi_cache;
   int bidi_cache_size;
+
+  void (*update_window_callback)();
+  struct child* child;
 };
 
-extern struct term term;
 
-void term_resize(int, int);
-void term_scroll(int, int);
-void term_reset(void);
-void term_clear_scrollback(void);
-void term_mouse_click(mouse_button, mod_keys, pos, int count);
-void term_mouse_release(mouse_button, mod_keys, pos);
-void term_mouse_move(mod_keys, pos);
-void term_mouse_wheel(int delta, int lines_per_notch, mod_keys, pos);
-void term_select_all(void);
-void term_paint(void);
-void term_invalidate(int left, int top, int right, int bottom);
-void term_open(void);
-void term_copy(void);
-void term_paste(wchar *, uint len);
-void term_send_paste(void);
-void term_cancel_paste(void);
-void term_reconfig(void);
-void term_flip_screen(void);
-void term_reset_screen(void);
-void term_write(const char *, uint len);
-void term_flush(void);
-void term_set_focus(bool has_focus);
-int  term_cursor_type(void);
-bool term_cursor_blinks(void);
-void term_hide_cursor(void);
+void term_resize(struct term* term, int, int);
+void term_scroll(struct term* term, int, int);
+void term_reset(struct term* term);
+void term_clear_scrollback(struct term* term);
+void term_mouse_click(struct term* term, mouse_button, mod_keys, pos, int count);
+void term_mouse_release(struct term* term, mouse_button, mod_keys, pos);
+void term_mouse_move(struct term* term, mod_keys, pos);
+void term_mouse_wheel(struct term* term, int delta, int lines_per_notch, mod_keys, pos);
+void term_select_all(struct term* term);
+void term_paint(struct term* term);
+void term_invalidate(struct term* term, int left, int top, int right, int bottom);
+void term_open(struct term* term);
+void term_copy(struct term* term);
+void term_paste(struct term* term, wchar *, uint len);
+void term_send_paste(struct term* term);
+void term_cancel_paste(struct term* term);
+void term_reconfig(struct term* term);
+void term_flip_screen(struct term* term);
+void term_reset_screen(struct term* term);
+void term_write(struct term* term, const char *, uint len);
+void term_flush(struct term* term);
+void term_set_focus(struct term* term, bool has_focus);
+int  term_cursor_type(struct term* term);
+bool term_cursor_blinks(struct term* term);
+void term_hide_cursor(struct term* term);
 
 #endif

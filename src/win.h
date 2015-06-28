@@ -47,7 +47,7 @@ void win_open(wstring path);
 void win_copy(const wchar *data, uint *attrs, int len);
 void win_paste(void);
 
-void win_set_timer(void_fn cb, uint ticks);
+void win_set_timer(void (*cb)(void*), void* data, uint ticks);
 
 void win_show_about(void);
 void win_show_error(wchar *);
@@ -60,5 +60,8 @@ int cursor_blink_ticks(void);
 int win_char_width(xchar);
 wchar win_combine_chars(wchar bc, wchar cc);
 extern wchar win_linedraw_chars[31];
+
+// Currently active terminal in UI
+extern struct term* g_active_terminal;
 
 #endif

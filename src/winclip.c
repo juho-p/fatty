@@ -52,7 +52,7 @@ win_open(wstring wpath)
   }
   else {
     // Need to convert POSIX path to Windows first
-    wstring conv_wpath = child_conv_path(wpath);
+    wstring conv_wpath = child_conv_path(g_active_terminal->child, wpath);
     delete(wpath);
     if (conv_wpath)
       shell_exec(conv_wpath);
@@ -481,7 +481,7 @@ paste_hdrop(HDROP drop)
     free(fn);
   }
   buf_pos--;  // Drop trailing space
-  child_send(buf, buf_pos);
+  child_send(g_active_terminal->child, buf, buf_pos);
   free(buf);
 }
 
@@ -490,7 +490,7 @@ paste_unicode_text(HANDLE data)
 {
   wchar *s = GlobalLock(data);
   uint l = wcslen(s);
-  term_paste(s, l);
+  term_paste(g_active_terminal, s, l);
   GlobalUnlock(data);
 }
 
@@ -502,7 +502,7 @@ paste_text(HANDLE data)
   wchar s[l];
   MultiByteToWideChar(CP_ACP, 0, cs, -1, s, l);
   GlobalUnlock(data);
-  term_paste(s, l);
+  term_paste(g_active_terminal, s, l);
 }
 
 void
@@ -511,7 +511,7 @@ win_paste(void)
   if (!OpenClipboard(null))
     return;  
   HGLOBAL data;
-  term.selected = false;
+  g_active_terminal->selected = false;
   if ((data = GetClipboardData(CF_HDROP)))
     paste_hdrop(data);
   else if ((data = GetClipboardData(CF_UNICODETEXT)))
