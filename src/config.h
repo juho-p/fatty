@@ -94,7 +94,7 @@ typedef struct {
   string printer;
   bool confirm_exit;
   // Command line
-  string class;
+  string classname;
   char hold;
   string icon;
   string log;

@@ -20,5 +20,7 @@
 #define IDM_OPTIONS     0x0090
 #define IDM_NEW         0x00a0
 #define IDM_COPYTITLE   0x00b0
+#define IDM_NEWTAB      0x00c0
+#define IDM_KILLTAB      0x00d0
 
 #endif

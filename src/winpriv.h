@@ -55,4 +55,23 @@ void win_set_ime_open(bool);
 
 bool win_is_fullscreen;
 
+void win_process_timer_message(WPARAM message);
+
+void win_tab_init(char* home, char* cmd, char** argv, int width, int height);
+int win_tab_count();
+int win_active_tab();
+void win_tab_change(int change);
+void win_tab_move(int amount);
+void win_tab_create();
+void win_tab_clean();
+void win_tab_attention(struct term* term);
+void win_tab_title(struct term* term, wchar_t* title);
+
+void win_tab_mouse_click(int x);
+int win_tab_height();
+void win_paint_tabs(HDC dc, int width);
+void win_for_each_term(void (*cb)(struct term* term));
+
+bool win_should_die();
+
 #endif

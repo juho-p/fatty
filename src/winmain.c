@@ -17,10 +17,6 @@
 
 #include <sys/cygwin.h>
 
-struct term* g_active_terminal;
-static struct term main_terminal;
-static struct child main_child;
-
 HINSTANCE inst;
 HWND wnd;
 HIMC imc;
@@ -37,6 +33,8 @@ static bool resizing;
 static bool title_settable = true;
 
 static HBITMAP caretbm;
+
+static int term_initialized;
 
 #if WINVER < 0x600
 
@@ -80,27 +78,14 @@ load_dwm_funcs(void)
   }
 }
 
-struct timercb
-{
-  void (*cb)(void*);
-  void* data;
-};
 void
-win_set_timer(void (*cb)(void*), void* data, uint ticks)
+win_set_title(struct term* term, char *title)
 {
-  struct timercb* timerdata = malloc(sizeof(struct timercb));
-  timerdata->cb = cb;
-  timerdata->data = data;
-  SetTimer(wnd, (UINT_PTR)timerdata, ticks, null);
-}
-
-void
-win_set_title(char *title)
-{
-  if (title_settable) {
-    wchar wtitle[strlen(title) + 1];
-    if (cs_mbstowcs(wtitle, title, lengthof(wtitle)) >= 0)
+  wchar wtitle[strlen(title) + 1];
+  if (cs_mbstowcs(wtitle, title, lengthof(wtitle)) >= 0) {
+    if (term == win_active_terminal() && title_settable)
       SetWindowTextW(wnd, wtitle);
+    win_tab_title(term, wtitle);
   }
 }
 
@@ -292,7 +277,7 @@ flash_taskbar(bool enable)
  * Bell.
  */
 void
-win_bell(void)
+win_bell(struct term* term)
 {
   if (cfg.bell_sound || cfg.bell_type) {
     if (cfg.bell_freq)
@@ -307,8 +292,10 @@ win_bell(void)
       MessageBeep((cfg.bell_type - 1) * 16);
     }
   }
-  if (cfg.bell_taskbar && !g_active_terminal->has_focus)
+  if (cfg.bell_taskbar && !win_active_terminal()->has_focus)
     flash_taskbar(true);
+  if (!term->has_focus)
+    win_tab_attention(term);
 }
 
 void
@@ -332,13 +319,14 @@ win_adapt_term_size(void)
   extra_width = wr.right - wr.left - client_width;
   extra_height = wr.bottom - wr.top - client_height;
   int term_width = client_width - 2 * PADDING;
-  int term_height = client_height - 2 * PADDING;
+  int term_height = client_height - 2 * PADDING - win_tab_height();
   int cols = max(1, term_width / font_width);
   int rows = max(1, term_height / font_height);
-  if (rows != g_active_terminal->rows || cols != g_active_terminal->cols) {
-    term_resize(g_active_terminal, rows, cols);
+  struct term* term = win_active_terminal();
+  if (rows != term->rows || cols != term->cols) {
+    term_resize(term, rows, cols);
     struct winsize ws = {rows, cols, cols * font_width, rows * font_height};
-    child_resize(g_active_terminal->child, &ws);
+    child_resize(term->child, &ws);
   }
   win_invalidate_all();
 }
@@ -358,7 +346,7 @@ update_glass(void)
   if (pDwmExtendFrameIntoClientArea) {
     bool enabled =
       cfg.transparency == TR_GLASS && !win_is_fullscreen &&
-      !(cfg.opaque_when_focused && g_active_terminal->has_focus);
+      !(cfg.opaque_when_focused && win_active_terminal()->has_focus);
     pDwmExtendFrameIntoClientArea(wnd, &(MARGINS){enabled ? -1 : 0, 0, 0, 0});
   }
 }
@@ -448,7 +436,7 @@ update_transparency(void)
   style = trans ? style | WS_EX_LAYERED : style & ~WS_EX_LAYERED;
   SetWindowLong(wnd, GWL_EXSTYLE, style);
   if (trans) {
-    if (cfg.opaque_when_focused && g_active_terminal->has_focus)
+    if (cfg.opaque_when_focused && win_active_terminal()->has_focus)
       trans = 0;
     SetLayeredWindowAttributes(wnd, 0, 255 - (uchar)trans, LWA_ALPHA);
   }
@@ -459,7 +447,7 @@ update_transparency(void)
 void
 win_update_scrollbar(void)
 {
-  int scrollbar = g_active_terminal->show_scrollbar ? cfg.scrollbar : 0;
+  int scrollbar = win_active_terminal()->show_scrollbar ? cfg.scrollbar : 0;
   LONG style = GetWindowLong(wnd, GWL_STYLE);
   SetWindowLong(wnd, GWL_STYLE,
                 scrollbar ? style | WS_VSCROLL : style & ~WS_VSCROLL);
@@ -472,11 +460,21 @@ win_update_scrollbar(void)
                SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
 }
 
+
+static void _reconfig(struct term* term) {
+  if (term->report_font_changed)
+    if (term->report_ambig_width)
+      child_write(term->child, cs_ambig_wide ? "\e[2W" : "\e[1W", 4);
+    else
+      child_write(term->child, "\e[0W", 4);
+  else if (term->report_ambig_width)
+    child_write(term->child, cs_ambig_wide ? "\e[2W" : "\e[1W", 4);
+}
 void
 win_reconfig(void)
 {
  /* Pass new config data to the terminal */
-  term_reconfig(g_active_terminal);
+  win_for_each_term(term_reconfig);
 
   bool font_changed =
     strcmp(new_cfg.font.name, cfg.font.name) ||
@@ -505,21 +503,14 @@ win_reconfig(void)
   update_transparency();
   win_update_mouse();
 
-  bool old_ambig_wide = cs_ambig_wide;
   cs_reconfig();
-  if (g_active_terminal->report_font_changed && font_changed)
-    if (g_active_terminal->report_ambig_width)
-      child_write(g_active_terminal->child, cs_ambig_wide ? "\e[2W" : "\e[1W", 4);
-    else
-      child_write(g_active_terminal->child, "\e[0W", 4);
-  else if (g_active_terminal->report_ambig_width && old_ambig_wide != cs_ambig_wide)
-    child_write(g_active_terminal->child, cs_ambig_wide ? "\e[2W" : "\e[1W", 4);
+  win_for_each_term(_reconfig);
 }
 
 static bool
 confirm_exit(void)
 {
-  if (!child_is_parent(g_active_terminal->child))
+  if (!child_is_any_parent())
     return true;
 
   int ret =
@@ -537,46 +528,47 @@ confirm_exit(void)
 static LRESULT CALLBACK
 win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
 {
+  struct term* term = 0;
+  if (term_initialized) term = win_active_terminal();
   switch (message) {
     when WM_TIMER: {
-      KillTimer(wnd, wp);
-      struct timercb* cb = (struct timercb*)wp;
-      cb->cb(cb->data);
-      free(cb);
+      win_process_timer_message(wp);
       return 0;
     }
     when WM_CLOSE:
       if (!cfg.confirm_exit || confirm_exit())
-        child_kill(g_active_terminal->child, (GetKeyState(VK_SHIFT) & 0x80) != 0);
+        child_kill((GetKeyState(VK_SHIFT) & 0x80) != 0);
       return 0;
     when WM_COMMAND or WM_SYSCOMMAND:
       switch (wp & ~0xF) {  /* low 4 bits reserved to Windows */
-        when IDM_OPEN: term_open(g_active_terminal);
-        when IDM_COPY: term_copy(g_active_terminal);
+        when IDM_OPEN: term_open(term);
+        when IDM_COPY: term_copy(term);
         when IDM_PASTE: win_paste();
-        when IDM_SELALL: term_select_all(g_active_terminal); win_update();
-        when IDM_RESET: term_reset(g_active_terminal); win_update();
+        when IDM_SELALL: term_select_all(term); win_update();
+        when IDM_RESET: term_reset(term); win_update();
         when IDM_DEFSIZE: default_size();
         when IDM_FULLSCREEN: win_maximise(win_is_fullscreen ? 0 : 2);
-        when IDM_FLIPSCREEN: term_flip_screen(g_active_terminal);
+        when IDM_FLIPSCREEN: term_flip_screen(term);
         when IDM_OPTIONS: win_open_config();
-        when IDM_NEW: child_fork(g_active_terminal->child, main_argc, main_argv);
+        when IDM_NEW: child_fork(term->child, main_argc, main_argv);
         when IDM_COPYTITLE: win_copy_title();
+        when IDM_NEWTAB: win_tab_create();
+        when IDM_KILLTAB: child_terminate(term->child);
       }
     when WM_VSCROLL:
       switch (LOWORD(wp)) {
-        when SB_BOTTOM:   term_scroll(g_active_terminal, -1, 0);
-        when SB_TOP:      term_scroll(g_active_terminal, +1, 0);
-        when SB_LINEDOWN: term_scroll(g_active_terminal, 0, +1);
-        when SB_LINEUP:   term_scroll(g_active_terminal, 0, -1);
-        when SB_PAGEDOWN: term_scroll(g_active_terminal, 0, +max(1, g_active_terminal->rows - 1));
-        when SB_PAGEUP:   term_scroll(g_active_terminal, 0, -max(1, g_active_terminal->rows - 1));
+        when SB_BOTTOM:   term_scroll(term, -1, 0);
+        when SB_TOP:      term_scroll(term, +1, 0);
+        when SB_LINEDOWN: term_scroll(term, 0, +1);
+        when SB_LINEUP:   term_scroll(term, 0, -1);
+        when SB_PAGEDOWN: term_scroll(term, 0, +max(1, term->rows - 1));
+        when SB_PAGEUP:   term_scroll(term, 0, -max(1, term->rows - 1));
         when SB_THUMBPOSITION or SB_THUMBTRACK: {
           SCROLLINFO info;
           info.cbSize = sizeof(SCROLLINFO);
           info.fMask = SIF_TRACKPOS;
           GetScrollInfo(wnd, SB_VERT, &info);
-          term_scroll(g_active_terminal, 1, info.nTrackPos);
+          term_scroll(term, 1, info.nTrackPos);
         }
       }
     when WM_LBUTTONDOWN: win_mouse_click(MBT_LEFT, lp);
@@ -595,7 +587,7 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
       if (win_key_up(wp, lp))
         return 0;
     when WM_CHAR or WM_SYSCHAR:
-      child_sendw(g_active_terminal->child, &(wchar){wp}, 1);
+      child_sendw(term->child, &(wchar){wp}, 1);
       return 0;
     when WM_INPUTLANGCHANGE:
       win_set_ime_open(ImmIsIME(GetKeyboardLayout(0)) && ImmGetOpenStatus(imc));
@@ -610,7 +602,7 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
         if (len > 0) {
           char buf[len];
           ImmGetCompositionStringW(imc, GCS_RESULTSTR, buf, len);
-          child_sendw(g_active_terminal->child, (wchar *)buf, len / 2);
+          child_sendw(term->child, (wchar *)buf, len / 2);
         }
         return 1;
       }
@@ -618,7 +610,7 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
       win_paint();
       return 0;
     when WM_SETFOCUS:
-      term_set_focus(g_active_terminal, true);
+      term_set_focus(term, true);
       CreateCaret(wnd, caretbm, 0, 0);
       flash_taskbar(false);  /* stop */
       win_update();
@@ -626,7 +618,7 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
       ShowCaret(wnd);
     when WM_KILLFOCUS:
       win_show_mouse();
-      term_set_focus(g_active_terminal, false);
+      term_set_focus(term, false);
       DestroyCaret();
       win_update();
       update_transparency();
@@ -646,7 +638,7 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
       */
       LPRECT r = (LPRECT) lp;
       int width = r->right - r->left - extra_width - 2 * PADDING;
-      int height = r->bottom - r->top - extra_height - 2 * PADDING;
+      int height = r->bottom - r->top - extra_height - 2 * PADDING - win_tab_height();
       int cols = max(1, (float)width / font_width + 0.5);
       int rows = max(1, (float)height / font_height + 0.5);
 
@@ -939,11 +931,11 @@ main(int argc, char *argv[])
 
   // Window class name.
   wstring wclass = _W(APPNAME);
-  if (*cfg.class) {
-    size_t size = cs_mbstowcs(0, cfg.class, 0) + 1;
+  if (*cfg.classname) {
+    size_t size = cs_mbstowcs(0, cfg.classname, 0) + 1;
     if (size) {
       wchar *buf = newn(wchar, size);
-      cs_mbstowcs(buf, cfg.class, size);
+      cs_mbstowcs(buf, cfg.classname, size);
       wclass = buf;
     }
     else
@@ -1002,7 +994,8 @@ main(int argc, char *argv[])
   int term_width = font_width * cfg.cols;
   int term_height = font_height * cfg.rows;
 
-  RECT cr = {0, 0, term_width + 2 * PADDING, term_height + 2 * PADDING};
+  RECT cr = {0, 0, term_width + 2 * PADDING, term_height +
+      2 * PADDING + win_tab_height()};
   RECT wr = cr;
   AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, false);
   int width = wr.right - wr.left;
@@ -1050,12 +1043,11 @@ main(int argc, char *argv[])
   }
 
   // Initialise the terminal.
-  g_active_terminal = &main_terminal;
-  main_terminal.child = &main_child;
-  main_terminal.update_window_callback = win_update;
+  win_tab_init(home, cmd, argv, term_width, term_height);
 
-  term_reset(g_active_terminal);
-  term_resize(g_active_terminal, cfg.rows, cfg.cols);
+  term_initialized = 1;
+
+  child_init();
 
   // Initialise the scroll bar.
   SetScrollInfo(
@@ -1078,20 +1070,12 @@ main(int argc, char *argv[])
   win_init_menus();
   update_transparency();
 
-  // Create child process.
-  main_child.cmd = cmd;
-  main_child.home = home;
-  child_create(&main_child, &main_terminal,
-    argv, &(struct winsize){cfg.rows, cfg.cols, term_width, term_height}
-  );
-
   // Finally show the window!
   fullscr_on_max = (cfg.window == -1);
   ShowWindow(wnd, fullscr_on_max ? SW_SHOWMAXIMIZED : cfg.window);
 
-  puts("mainloop");
   // Message loop.
-  for (;;) {
+  do {
     MSG msg;
     while (PeekMessage(&msg, null, 0, 0, PM_REMOVE)) {
       if (msg.message == WM_QUIT)
@@ -1099,8 +1083,8 @@ main(int argc, char *argv[])
       if (!IsDialogMessage(config_wnd, &msg))
         DispatchMessage(&msg);
     }
-    child_proc(&main_child);
-  }
-  //  kill(-pid, SIGHUP);
-  kill(-main_child.pid, SIGHUP);
+    child_proc();
+    win_tab_clean();
+  } while (!win_should_die());
+  win_tab_clean();
 }

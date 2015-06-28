@@ -75,7 +75,7 @@ const config default_cfg = {
   .printer = "",
   .confirm_exit = true,
   // Command line
-  .class = "",
+  .classname = "",
   .hold = HOLD_START,
   .icon = "",
   .log = "",
@@ -191,7 +191,7 @@ options[] = {
   {"ConfirmExit", OPT_BOOL, offcfg(confirm_exit)},
 
   // Command line
-  {"Class", OPT_STRING, offcfg(class)},
+  {"Class", OPT_STRING, offcfg(classname)},
   {"Hold", OPT_HOLD, offcfg(hold)},
   {"Icon", OPT_STRING, offcfg(icon)},
   {"Log", OPT_STRING, offcfg(log)},
@@ -696,8 +696,8 @@ static void
 current_size_handler(control *unused(ctrl), int event)
 {
   if (event == EVENT_ACTION) {
-    new_cfg.cols = g_active_terminal->cols;
-    new_cfg.rows = g_active_terminal->rows;
+    new_cfg.cols = win_active_terminal()->cols;
+    new_cfg.rows = win_active_terminal()->rows;
     dlg_refresh(cols_box);
     dlg_refresh(rows_box);
   }

@@ -325,10 +325,11 @@ static bool ime_open;
 void
 win_paint(void)
 {
+  struct term* term = win_active_terminal();
   PAINTSTRUCT p;
   dc = BeginPaint(wnd, &p);
 
-  term_invalidate(g_active_terminal,
+  term_invalidate(term,
     (p.rcPaint.left - PADDING) / font_width,
     (p.rcPaint.top - PADDING) / font_height,
     (p.rcPaint.right - PADDING - 1) / font_width,
@@ -336,13 +337,15 @@ win_paint(void)
   );
 
   if (update_state != UPDATE_PENDING)
-    term_paint(g_active_terminal);
+    term_paint(term);
+
+  win_paint_tabs(dc, p.rcPaint.right - p.rcPaint.left);
 
   if (p.fErase || p.rcPaint.left < PADDING ||
       p.rcPaint.top < PADDING ||
-      p.rcPaint.right >= PADDING + font_width * g_active_terminal->cols ||
-      p.rcPaint.bottom >= PADDING + font_height * g_active_terminal->rows) {
-    colour bg_colour = colours[g_active_terminal->rvideo ? FG_COLOUR_I : BG_COLOUR_I];
+      p.rcPaint.right >= PADDING + font_width * term->cols ||
+      p.rcPaint.bottom >= PADDING + font_height * term->rows) {
+    colour bg_colour = colours[term->rvideo ? FG_COLOUR_I : BG_COLOUR_I];
     HBRUSH oldbrush = SelectObject(dc, CreateSolidBrush(bg_colour));
     HPEN oldpen = SelectObject(dc, CreatePen(PS_SOLID, 0, bg_colour));
 
@@ -350,8 +353,8 @@ win_paint(void)
                       p.rcPaint.bottom);
 
     ExcludeClipRect(dc, PADDING, PADDING,
-                    PADDING + font_width * g_active_terminal->cols,
-                    PADDING + font_height * g_active_terminal->rows);
+                    PADDING + font_width * term->cols,
+                    PADDING + win_tab_height() + font_height * term->rows);
 
     Rectangle(dc, p.rcPaint.left, p.rcPaint.top,
                   p.rcPaint.right, p.rcPaint.bottom);
@@ -369,6 +372,7 @@ static void do_update_cb(void* _) { (void)_; do_update(); }
 static void
 do_update(void)
 {
+  struct term* term = win_active_terminal();
   if (update_state == UPDATE_BLOCKED) {
     update_state = UPDATE_IDLE;
     return;
@@ -377,19 +381,19 @@ do_update(void)
   update_state = UPDATE_BLOCKED;
 
   dc = GetDC(wnd);
-  term_paint(g_active_terminal);
+  term_paint(term);
   ReleaseDC(wnd, dc);
 
   // Update scrollbar
-  if (cfg.scrollbar && g_active_terminal->show_scrollbar) {
-    int lines = sblines(g_active_terminal);
+  if (cfg.scrollbar && term->show_scrollbar) {
+    int lines = sblines(term);
     SCROLLINFO si = {
       .cbSize = sizeof si,
       .fMask = SIF_ALL | SIF_DISABLENOSCROLL,
       .nMin = 0,
-      .nMax = lines + g_active_terminal->rows - 1,
-      .nPage = g_active_terminal->rows,
-      .nPos = lines + g_active_terminal->disptop
+      .nMax = lines + term->rows - 1,
+      .nPage = term->rows,
+      .nPos = lines + term->disptop
     };
     SetScrollInfo(wnd, SB_VERT, &si, true);
   }
@@ -398,9 +402,9 @@ do_update(void)
   // (We maintain a caret, even though it's invisible, for the benefit of
   // blind people: apparently some helper software tracks the system caret,
   // so we should arrange to have one.)
-  if (g_active_terminal->has_focus) {
-    int x = g_active_terminal->curs.x * font_width + PADDING;
-    int y = (g_active_terminal->curs.y - g_active_terminal->disptop) * font_height + PADDING;
+  if (term->has_focus) {
+    int x = term->curs.x * font_width + PADDING;
+    int y = (term->curs.y - term->disptop) * font_height + PADDING;
     SetCaretPos(x, y);
     if (ime_open) {
       COMPOSITIONFORM cf = {.dwStyle = CFS_POINT, .ptCurrentPos = {x, y}};
@@ -419,6 +423,11 @@ win_update(void)
     do_update();
   else
     update_state = UPDATE_PENDING;
+}
+
+void win_update_term(struct term* term)
+{
+  if (win_active_terminal() == term) win_update();
 }
 
 void
@@ -484,7 +493,7 @@ win_set_ime_open(bool open)
 {
   if (open != ime_open) {
     ime_open = open;
-    g_active_terminal->cursor_invalid = true;
+    win_active_terminal()->cursor_invalid = true;
     win_update();
   }
 }
@@ -504,13 +513,13 @@ win_text(int x, int y, wchar *text, int len, cattr attr, int lattr)
 
  /* Convert to window coordinates */
   x = x * char_width + PADDING;
-  y = y * font_height + PADDING;
+  y = y * font_height + PADDING + win_tab_height();
 
   if (attr.attr & ATTR_WIDE)
     char_width *= 2;
 
  /* Only want the left half of double width lines */
-  if (lattr != LATTR_NORM && x * 2 >= g_active_terminal->cols)
+  if (lattr != LATTR_NORM && x * 2 >= win_active_terminal()->cols)
     return;
 
   uint nfont;
@@ -546,7 +555,7 @@ win_text(int x, int y, wchar *text, int len, cattr attr, int lattr)
   colour_i fgi = (attr.attr & ATTR_FGMASK) >> ATTR_FGSHIFT;
   colour_i bgi = (attr.attr & ATTR_BGMASK) >> ATTR_BGSHIFT;
 
-  if (g_active_terminal->rvideo) {
+  if (win_active_terminal()->rvideo) {
     if (fgi >= 256)
       fgi ^= 2;     // [BOLD_]FG_COLOUR_I <-> [BOLD_]BG_COLOUR_I
     if (bgi >= 256)
@@ -590,7 +599,7 @@ win_text(int x, int y, wchar *text, int len, cattr attr, int lattr)
     if (too_close)
       cursor_colour = fg;
 
-    if ((attr.attr & TATTR_ACTCURS) && term_cursor_type(g_active_terminal) == CUR_BLOCK) {
+    if ((attr.attr & TATTR_ACTCURS) && term_cursor_type(win_active_terminal()) == CUR_BLOCK) {
       fg = colours[CURSOR_TEXT_COLOUR_I];
       if (too_close && colour_dist(cursor_colour, fg) < 32768)
         fg = bg;
@@ -634,7 +643,7 @@ win_text(int x, int y, wchar *text, int len, cattr attr, int lattr)
   int width = char_width * (combining ? 1 : len);
   RECT box = {
     .left = x, .top = y,
-    .right = min(x + width, font_width * g_active_terminal->cols + PADDING),
+    .right = min(x + width, font_width * win_active_terminal()->cols + PADDING),
     .bottom = y + font_height
   };
 
@@ -671,7 +680,7 @@ win_text(int x, int y, wchar *text, int len, cattr attr, int lattr)
 
   if (has_cursor) {
     HPEN oldpen = SelectObject(dc, CreatePen(PS_SOLID, 0, cursor_colour));
-    switch(term_cursor_type(g_active_terminal)) {
+    switch(term_cursor_type(win_active_terminal())) {
       when CUR_BLOCK:
         if (attr.attr & TATTR_PASCURS) {
           HBRUSH oldbrush = SelectObject(dc, GetStockObject(NULL_BRUSH));
@@ -718,8 +727,8 @@ void
 win_check_glyphs(wchar *wcs, uint num)
 {
   HDC dc = GetDC(wnd);
-  bool bold = (bold_mode == BOLD_FONT) && (g_active_terminal->curs.attr.attr & ATTR_BOLD);
-  bool italic = g_active_terminal->curs.attr.attr & ATTR_ITALIC;
+  bool bold = (bold_mode == BOLD_FONT) && (win_active_terminal()->curs.attr.attr & ATTR_BOLD);
+  bool italic = win_active_terminal()->curs.attr.attr & ATTR_ITALIC;
   SelectObject(dc, fonts[(bold ? FONT_BOLD : FONT_NORMAL) | italic ? FONT_ITALIC : 0]);
   ushort glyphs[num];
   GetGlyphIndicesW(dc, wcs, num, glyphs, true);

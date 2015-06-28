@@ -126,7 +126,7 @@ write_bell(struct term* term)
 {
   if (cfg.bell_flash)
     term_schedule_vbell(term, false, 0);
-  win_bell();
+  win_bell(term);
 }
 
 static void
@@ -1007,7 +1007,7 @@ do_cmd(struct term* term)
   s[term->cmd_len] = 0;
   switch (term->cmd_num) {
     when -1: do_dcs(term);
-    when 0 or 2: win_set_title(s);  // ignore icon title
+    when 0 or 2: win_set_title(term, s);  // ignore icon title
     when 4:  do_colour_osc(term, 0);
     when 10: do_colour_osc(term, FG_COLOUR_I);
     when 11: do_colour_osc(term, BG_COLOUR_I);

@@ -6,14 +6,15 @@
 void win_reconfig(void);
 
 void win_update(void);
+void win_update_term(struct term* term);
 void win_schedule_update(void);
 
-void win_text(int x, int y, wchar *text, int len, cattr attr, int lattr);
+void win_text(int x, int y, wchar_t *text, int len, cattr attr, int lattr);
 void win_update_mouse(void);
 void win_capture_mouse(void);
-void win_bell(void);
+void win_bell(struct term* term);
 
-void win_set_title(char *);
+void win_set_title(struct term* term, char *);
 void win_save_title(void);
 void win_restore_title(void);
 
@@ -39,29 +40,29 @@ void win_popup_menu(void);
 
 void win_zoom_font(int);
 void win_set_font_size(int);
-uint win_get_font_size(void);
+unsigned int win_get_font_size(void);
 
-void win_check_glyphs(wchar *wcs, uint num);
+void win_check_glyphs(wchar_t *wcs, unsigned int num);
 
 void win_open(wstring path);
-void win_copy(const wchar *data, uint *attrs, int len);
+void win_copy(const wchar_t *data, unsigned int *attrs, int len);
 void win_paste(void);
 
-void win_set_timer(void (*cb)(void*), void* data, uint ticks);
+void win_set_timer(void (*cb)(void*), void* data, unsigned int ticks);
 
 void win_show_about(void);
-void win_show_error(wchar *);
+void win_show_error(wchar_t *);
 
 bool win_is_glass_available(void);
 
 int get_tick_count(void);
 int cursor_blink_ticks(void);
 
-int win_char_width(xchar);
-wchar win_combine_chars(wchar bc, wchar cc);
-extern wchar win_linedraw_chars[31];
+int win_char_width(unsigned int);
+wchar_t win_combine_chars(wchar_t bc, wchar_t cc);
+extern wchar_t win_linedraw_chars[31];
 
-// Currently active terminal in UI
-extern struct term* g_active_terminal;
+struct term* win_active_terminal();
+
 
 #endif

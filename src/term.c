@@ -27,7 +27,7 @@ tblink_cb(void* data)
   struct term* term = (struct term*)data;
   term->tblinker = !term->tblinker;
   term_schedule_tblink(term);
-  term->update_window_callback();
+  win_update_term(term);
 }
 
 void
@@ -45,12 +45,10 @@ term_schedule_tblink(struct term* term)
 static void
 cblink_cb(void* data)
 {
-  static int x = 0;
-  printf("cblink %d\n", x++);
   struct term* term = (struct term*)data;
   term->cblinker = !term->cblinker;
   term_schedule_cblink(term);
-  term->update_window_callback();
+  win_update_term(term);
 }
 
 void
@@ -67,7 +65,7 @@ vbell_cb(void* data)
 {
   struct term* term = (struct term*)data;
   term->in_vbell = false;
-  term->update_window_callback();
+  win_update_term(term);
 }
 
 void
@@ -179,7 +177,7 @@ show_screen(struct term* term, bool other_screen)
     term_schedule_cblink(term);
   }
 
-  term->update_window_callback();
+  win_update_term(term);
 }
 
 /* Return to active screen and reset scrollback */
@@ -890,7 +888,7 @@ term_scroll(struct term* term, int rel, int where)
     term->disptop = sbtop;
   if (term->disptop > 0)
     term->disptop = 0;
-  term->update_window_callback();
+  win_update_term(term);
 }
 
 void
@@ -932,6 +930,6 @@ term_hide_cursor(struct term* term)
 {
   if (term->cursor_on) {
     term->cursor_on = false;
-    term->update_window_callback();
+    win_update_term(term);
   }
 }

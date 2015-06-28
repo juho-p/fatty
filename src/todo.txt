@@ -1,0 +1,4 @@
+- greppaa TODO, korjaa
+- yhteiset terminaali optiot term:stä config:iin
+
+assertion "0 <= saved_curs->y && saved_curs->y < newrows" failed: file "term.c", line 400, function: term_resize
