@@ -1,3 +1,8 @@
+FaTTY is based on mintty code (https://github.com/mintty/mintty) and uses the
+same GPL3 license. The original mintty license text is below.
+
+---------------------------------------------------------------------------
+
 mintty is copyright 2008-13 Andy Koppe, 2015 Thomas Wolff.
 Licensed under the terms of the GNU General Public License version 3 or later.
 The license text can be found in the accompanying LICENSE file, at

@@ -1,17 +1,17 @@
 #ifndef APPINFO_H
 #define APPINFO_H
 
-#define APPNAME "mintty"
-#define WEBSITE "http://mintty.github.io/"
+#define APPNAME "FaTTY"
+#define WEBSITE "http://github.com/juho-p/fatty"
 
-#define MAJOR_VERSION  2
+#define MAJOR_VERSION  1
 #define MINOR_VERSION  0
-#define PATCH_NUMBER   1
-#define BUILD_NUMBER   0
+#define PATCH_NUMBER   0
+#define BUILD_NUMBER   1
 
 // needed for res.rc
 #define APPDESC "Terminal"
-#define AUTHOR  "Andy Koppe"
+#define AUTHOR  "Juho Peltonen"
 #define YEAR    "2015"
 
 
@@ -20,17 +20,7 @@
 #define STRINGIFY_(s) #s
 #define STRINGIFY(s) STRINGIFY_(s)
 
-#if defined SVN_DIR && defined SVN_REV	// deprecated
-  #undef BUILD_NUMBER
-  #define BUILD_NUMBER SVN_REV
-  #define VERSION STRINGIFY(svn-SVN_DIR-CONCAT(r,SVN_REV))
-#elif PATCH_NUMBER
-  #define VERSION STRINGIFY(MAJOR_VERSION.MINOR_VERSION.PATCH_NUMBER)
-#elif BUILD_NUMBER
-  #define VERSION STRINGIFY(MAJOR_VERSION.MINOR_VERSION-CONCAT(beta,BUILD_NUMBER))
-#else
-  #define VERSION STRINGIFY(MAJOR_VERSION.MINOR_VERSION-alpha)
-#endif
+#define VERSION STRINGIFY(MAJOR_VERSION.MINOR_VERSION)
 
 
 // needed for res.rc
@@ -44,7 +34,7 @@
 #define DECIMAL_VERSION \
   (MAJOR_VERSION * 10000 + MINOR_VERSION * 100 + PATCH_NUMBER)
 
-// needed for mintty -V and Options... - About...
+// needed for fatty -V and Options... - About...
 #define VERSION_TEXT \
   APPNAME " " VERSION " (" STRINGIFY(TARGET) ")\n" \
   COPYRIGHT "\n" \
@@ -53,13 +43,10 @@
 
 // needed for Options... - About...
 #define ABOUT_TEXT \
-  "Thanks to Simon Tatham and the other contributors for their\n"\
-  "great work on PuTTY, which mintty is largely based on. Thanks\n" \
-  "also to Thomas Wolff and Chris Sutcliffe for lots of testing and\n" \
-  "advice, and to KDE's Oxygen team for the program icon.\n" \
-  "\n" \
-  "Please report bugs or request enhancements through the\n" \
-  "issue tracker on the mintty project page located at\n" \
-  WEBSITE ".\n"
+  "Thanks to creators of mintty and PuTTY for creating working\n"\
+  "terminal emulator for windows. This software is largely based\n"\
+  "on their work.\n"\
+  "Thanks to KDE's Oxygen team for creating the program icon.\n"\
+  "For more info, check out " WEBSITE ".\n"
 
 #endif

@@ -1,4 +1,4 @@
-// winctrls.c (part of mintty)
+// winctrls.c (part of FaTTY)
 // Copyright 2008-11 Andy Koppe
 // Adapted from code from PuTTY-0.60 by Simon Tatham and team.
 // Licensed under the terms of the GNU General Public License v3 or later.

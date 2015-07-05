@@ -1,5 +1,6 @@
-// termmouse.c (part of mintty)
-// Copyright 2008-12 Andy Koppe
+// termmouse.c (part of FaTTY)
+// Copyright 2015 Juho Peltonen
+// Based on code from mintty by Andy Koppe
 // Based on code from PuTTY-0.60 by Simon Tatham and team.
 // Licensed under the terms of the GNU General Public License v3 or later.
 

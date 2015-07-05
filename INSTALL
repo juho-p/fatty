@@ -1,9 +1,6 @@
-Building mintty requires gcc >=3.x for Cygwin or MSYS. It can not be 
-built with a MinGW compiler, because it relies on some Unix facilities 
-that are not available on plain Windows, in particular pseudo terminal 
-devices (ptys).
+Building FaTTY requires recent version of gcc and g++ for Cygwin. It can not be
+built with a MinGW compiler, because it relies on some Unix facilities that are
+not available on plain Windows, in particular pseudo terminal devices (ptys).
 
 To compile, just run 'make'. (Add a -j option as desired.)
-To install, simply copy mintty.exe to an appropriate place, e.g. /bin.
-
-See the top of the Makefile for further make targets and options.
+To install, simply copy fatty.exe to an appropriate place, e.g. /bin.
