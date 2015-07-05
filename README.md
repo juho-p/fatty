@@ -15,3 +15,25 @@ using tabs.
 
 If you find bugs (there are probably many), you may report them on Github or
 send pull requests
+
+###Installing
+
+To install, run cygwin setup*.exe and have at least following packages marked for
+install:
+
+* gcc-g++
+* make
+* win32api-headers
+* git
+
+Then, run in Cygwin terminal run following commands:
+
+    git clone https://github.com/juho-p/fatty.git
+    cd fatty
+    make
+    cp src/fatty.exe /bin
+  
+  You can then try running it by typing `fatty`
+  
+  Then you probably want to create shortcut to your Windows desktop to run fatty.
+  After that, you have decent terminal with tabs for your Cygwin!
