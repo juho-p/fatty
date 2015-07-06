@@ -6,8 +6,8 @@
 
 #define MAJOR_VERSION  1
 #define MINOR_VERSION  0
-#define PATCH_NUMBER   0
-#define BUILD_NUMBER   1
+#define PATCH_NUMBER   1
+#define BUILD_NUMBER   2
 
 // needed for res.rc
 #define APPDESC "Terminal"
