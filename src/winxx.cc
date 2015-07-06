@@ -163,6 +163,7 @@ void win_tab_clean() {
 
 void win_tab_attention(struct term* term) {
     tab_by_term(term).info.attention = true;
+    invalidate_tabs();
 }
 
 void win_tab_title(struct term* term, wchar_t* title) {
