@@ -234,7 +234,7 @@ void win_paint_tabs(HDC dc, int width) {
                 FillRect(bufdc, &tabrect, brush);
             }
             paint_tab(bufdc, tabwidth, tabs[i]);
-            BitBlt(dc, i*tabwidth, 0, (i+1)*tabwidth, tabheight+1,
+            BitBlt(dc, i*tabwidth, 0, tabwidth, tabheight+1,
                     bufdc, 0, 0, SRCCOPY);
         }
     }
