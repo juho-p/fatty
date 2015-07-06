@@ -1,6 +1,8 @@
 FaTTY
 -----
 
+![FaTTY](http://i.imgur.com/ZMpvcNH.png)
+
 FaTTY is the [Cygwin](http://cygwin.com) Terminal emulator with tabs. It is
 useful for Windows and Cygwin users who want powerful terminal.
 
