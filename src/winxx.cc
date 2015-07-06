@@ -92,7 +92,7 @@ static void set_active_tab(unsigned int index) {
 }
 
 static unsigned int rel_index(int change) {
-    return (active_tab + change + tabs.size()) % tabs.size();
+    return (int(active_tab) + change + tabs.size()) % tabs.size();
 }
 
 void win_tab_change(int change) {
