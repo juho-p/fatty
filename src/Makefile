@@ -20,12 +20,13 @@ BUILD_DIR = build/
 LDFLAGS := -L$(shell $(CC) -print-file-name=w32api) $(LDFLAGS)
 
 ifdef DEBUG
-  CFLAGS += -g -O0
+  extraflags := -g -O0
 else
-  CPPFLAGS += -DNDEBUG -flto
-  CFLAGS += -fomit-frame-pointer -Os -flto
-  LDFLAGS += -s -flto
+  extraflags := -Os
+  CPPFLAGS += -DNDEBUG
 endif
+CFLAGS += $(extraflags)
+CXXFLAGS += $(extraflags)
 
 # ---------------------------
 
