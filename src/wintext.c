@@ -159,7 +159,7 @@ win_init_fonts(int size)
     fontflag[i] = 0;
   }
 
-  bold_mode = cfg.bold_as_font ? BOLD_FONT : BOLD_SHADOW;
+  bold_mode = cfg.bold_as_font ? BOLD_FONT : BOLD_NONE;
   und_mode = UND_FONT;
 
   if (cfg.font.isbold) {
