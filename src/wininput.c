@@ -144,18 +144,25 @@ get_mods(void)
 }
 
 static void
-update_mouse(mod_keys mods)
+set_app_cursor(bool use_app_mouse)
 {
   static bool app_mouse = -1;
-  bool new_app_mouse =
-    win_active_terminal()->mouse_mode && !win_active_terminal()->show_other_screen &&
-    cfg.clicks_target_app ^ ((mods & cfg.click_target_mod) != 0);
-  if (new_app_mouse != app_mouse) {
-    HCURSOR cursor = LoadCursor(null, new_app_mouse ? IDC_ARROW : IDC_IBEAM);
+  if (use_app_mouse != app_mouse) {
+    HCURSOR cursor = LoadCursor(null, use_app_mouse ? IDC_ARROW : IDC_IBEAM);
     SetClassLongPtr(wnd, GCLP_HCURSOR, (LONG_PTR)cursor);
     SetCursor(cursor);
-    app_mouse = new_app_mouse;
+    app_mouse = use_app_mouse;
   }
+}
+
+static void
+update_mouse(mod_keys mods)
+{
+  struct term* term = win_active_terminal();
+  bool new_app_mouse =
+    term->mouse_mode && !term->show_other_screen &&
+    cfg.clicks_target_app ^ ((mods & cfg.click_target_mod) != 0);
+  set_app_cursor(new_app_mouse);
 }
 
 void
@@ -260,6 +267,12 @@ win_mouse_move(bool nc, LPARAM lp)
   pos p = get_mouse_pos(lp);
   if (nc || (p.x == last_pos.x && p.y == last_pos.y))
     return;
+
+  if (p.y < 0) {
+    set_app_cursor(true);
+  } else {
+    win_update_mouse();
+  }
 
   last_pos = p;
   term_mouse_move(win_active_terminal(), get_mods(), p);
