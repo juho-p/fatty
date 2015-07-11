@@ -5,9 +5,8 @@
 #define WEBSITE "http://github.com/juho-p/fatty"
 
 #define MAJOR_VERSION  1
-#define MINOR_VERSION  0
-#define PATCH_NUMBER   1
-#define BUILD_NUMBER   2
+#define MINOR_VERSION  1
+#define PATCH_NUMBER   0
 
 // needed for res.rc
 #define APPDESC "Terminal"
@@ -25,9 +24,9 @@
 
 // needed for res.rc
 #define POINT_VERSION \
-  STRINGIFY(MAJOR_VERSION.MINOR_VERSION.PATCH_NUMBER.BUILD_NUMBER)
+  STRINGIFY(MAJOR_VERSION.MINOR_VERSION.PATCH_NUMBER)
 #define COMMA_VERSION \
-  MAJOR_VERSION,MINOR_VERSION,PATCH_NUMBER,BUILD_NUMBER
+  MAJOR_VERSION,MINOR_VERSION,PATCH_NUMBER
 #define COPYRIGHT "(C) " YEAR " " AUTHOR
 
 // needed for secondary device attributes report
