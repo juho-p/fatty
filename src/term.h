@@ -366,7 +366,6 @@ struct term {
   bidi_cache_entry *pre_bidi_cache, *post_bidi_cache;
   int bidi_cache_size;
 
-  void (*update_window_callback)();
   struct child* child;
 };
 
