@@ -171,6 +171,14 @@ child_create(struct child* child, struct term* term,
   }
 }
 
+void
+child_free(struct child* child)
+{
+  if (child->pty_fd >= 0)
+    close(child->pty_fd);
+  child->pty_fd = -1;
+}
+
 bool
 child_is_alive(struct child* child)
 {

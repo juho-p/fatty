@@ -165,6 +165,47 @@ term_reset(struct term* term)
   win_reset_colours();
 }
 
+static void freelines(termlines* lines, int rows) {
+  if (lines) {
+    for (int i = 0; i < rows; i++)
+      freeline(lines[i]);
+    free(lines);
+  }
+}
+
+void
+term_free(struct term* term)
+{
+  freelines(term->displines, term->rows);
+  freelines(term->lines, term->rows);
+  freelines(term->other_lines, term->rows);
+
+  term_clear_scrollback(term);
+
+  free(term->inbuf);
+
+  free(term->printbuf);
+
+  free(term->tabs);
+
+  free(term->paste_buffer);
+
+  free(term->ltemp);
+  free(term->wcFrom);
+  free(term->wcTo);
+  for (int i = 0; i < term->bidi_cache_size; i++) {
+    free(term->pre_bidi_cache[i].chars);
+    free(term->pre_bidi_cache[i].forward);
+    free(term->pre_bidi_cache[i].backward);
+    free(term->post_bidi_cache[i].chars);
+    free(term->post_bidi_cache[i].forward);
+    free(term->post_bidi_cache[i].backward);
+  }
+  free(term->pre_bidi_cache);
+  free(term->post_bidi_cache);
+  memset(term, 0, sizeof(*term));
+}
+
 static void
 show_screen(struct term* term, bool other_screen)
 {

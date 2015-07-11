@@ -29,6 +29,10 @@ Tab::Tab() : terminal(new term), chld(new child) {
     info.attention = false;
 }
 Tab::~Tab() {
+    if (terminal)
+        term_free(terminal.get());
+    if (chld)
+        child_free(chld.get());
 }
 Tab::Tab(Tab&& t) {
     info = t.info;

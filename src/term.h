@@ -373,6 +373,7 @@ struct term {
 void term_resize(struct term* term, int, int);
 void term_scroll(struct term* term, int, int);
 void term_reset(struct term* term);
+void term_free(struct term* term);
 void term_clear_scrollback(struct term* term);
 void term_mouse_click(struct term* term, mouse_button, mod_keys, pos, int count);
 void term_mouse_release(struct term* term, mouse_button, mod_keys, pos);
