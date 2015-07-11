@@ -367,32 +367,8 @@ child_fork(struct child* child, int argc, char *argv[])
       close(child_log_fd);
     close(child_win_fd);
 
-    // add child parameters
-    int newparams = 4;
-    char * * newargv = malloc((argc + newparams + 1) * sizeof(char *));
-    int i = 0, j = 0;
-    int addnew = 1;
-    while (1) {
-      if (addnew && (! argv[i] || strcmp (argv[i], "-e") == 0)) {
-        addnew = 0;
-        // insert additional parameters here
-        newargv[j++] = "-o";
-        char parbuf1[28];
-        sprintf (parbuf1, "Rows=%d", child->term->rows);
-        newargv[j++] = parbuf1;
-        newargv[j++] = "-o";
-        char parbuf2[31];
-        sprintf (parbuf2, "Columns=%d", child->term->cols);
-        newargv[j++] = parbuf2;
-      }
-      newargv[j] = argv[i];
-      if (! argv[i])
-        break;
-      i++;
-      j++;
-    }
-
-    execv("/proc/self/exe", newargv);
+    (void)argc;
+    execv("/proc/self/exe", argv);
     exit(255);
   }
 }
