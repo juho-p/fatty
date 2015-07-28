@@ -250,7 +250,7 @@ win_set_pixels(int height, int width)
 void
 win_set_chars(int rows, int cols)
 {
-  win_set_pixels(rows * font_height, cols * font_width);
+  win_set_pixels(rows * font_height + win_tab_height(), cols * font_width);
 }
 
 

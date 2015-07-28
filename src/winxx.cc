@@ -138,12 +138,13 @@ void win_tab_init(char* home, char* cmd, char** argv, int width, int height) {
     g_argv = argv;
     newtab(cfg.rows, cfg.cols, width, height);
 }
-
+static void set_tab_bar_visibility(bool b);
 void win_tab_create() {
     auto& t = *tabs[active_tab].terminal;
     // TODO: have nicer way of getting terminal size
     newtab(t.rows, t.cols, t.cols * font_width, t.rows * font_height);
     set_active_tab(tabs.size() - 1);
+    set_tab_bar_visibility(tabs.size() > 1);
 }
 
 void win_tab_clean() {
@@ -162,6 +163,7 @@ void win_tab_clean() {
         else
             set_active_tab(active_tab);
         win_invalidate_all();
+        set_tab_bar_visibility(tabs.size() > 1);
     }
 }
 
@@ -182,7 +184,26 @@ bool win_should_die() { return tabs.size() == 0; }
 
 const int tabheight = 18;
 
-int win_tab_height() { return tabheight; }
+static bool tab_bar_visible = false;
+static void fix_window_size() {
+    // doesn't work fully when you put fullscreen and then show or hide
+    // tab bar, but it's not too terrible (just looks little off) so I
+    // don't care. Maybe fix it later?
+    if (win_is_fullscreen) {
+        win_adapt_term_size();
+    } else {
+        auto& t = *tabs[active_tab].terminal;
+        win_set_chars(t.rows, t.cols);
+    }
+}
+static void set_tab_bar_visibility(bool b) {
+    if (b == tab_bar_visible) return;
+
+    tab_bar_visible = b;
+    fix_window_size();
+    win_invalidate_all();
+}
+int win_tab_height() { return tab_bar_visible ? tabheight : 0; }
 
 // paint a tab to dc (where dc draws to buffer)
 static void paint_tab(HDC dc, int width, const Tab& tab) {
@@ -201,6 +222,8 @@ struct SelectWObj {
 
 static int tab_paint_width = 0;
 void win_paint_tabs(HDC dc, int width) {
+    if (!tab_bar_visible) return;
+
     const auto bg = RGB(0,0,0);
     const auto fg = RGB(0,255,0);
     const auto active_bg = RGB(50, 50, 50);
