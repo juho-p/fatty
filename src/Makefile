@@ -4,9 +4,9 @@ SRC := charset.c child.c config.c ctrls.c minibidi.c std.c term.c termclip.c \
 	childxx.cc winxx.cc \
 	res.rc
 BIN ?= fatty.exe
-CXX ?= c++
-CC ?= gcc
-RC ?= windres
+CXX = g++
+CC = gcc
+RC = windres
 
 CXXFLAGS ?= -Wall -Wextra -std=gnu++11
 CFLAGS ?= -std=gnu99 -include std.h -Wall -Wextra -Wundef -Werror
