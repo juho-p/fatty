@@ -45,7 +45,7 @@ error(struct term* term, char *action)
 
 void
 child_create(struct child* child, struct term* term,
-    char *argv[], struct winsize *winp)
+    char *argv[], struct winsize *winp, const char* path)
 {
   int pid;
 
@@ -124,6 +124,9 @@ child_create(struct child* child, struct term* term,
     attr.c_iflag |= IXANY | IMAXBEL;
     attr.c_lflag |= ECHOE | ECHOK | ECHOCTL | ECHOKE;
     tcsetattr(0, TCSANOW, &attr);
+
+    if (path)
+      chdir(path);
 
     // Invoke command
     execvp(child->cmd, argv);

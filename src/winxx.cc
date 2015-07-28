@@ -4,6 +4,11 @@
 #include <vector>
 #include <algorithm>
 #include <climits>
+#include <string>
+#include <sstream>
+
+#include <unistd.h>
+#include <stdlib.h>
 
 #include "win.hh"
 
@@ -119,7 +124,7 @@ static char* g_cmd;
 static char** g_argv;
 static void newtab(
         unsigned short rows, unsigned short cols,
-        unsigned short width, unsigned short height) {
+        unsigned short width, unsigned short height, const char* cwd) {
     tabs.push_back(Tab());
     Tab& tab = tabs.back();
     tab.terminal->child = tab.chld.get();
@@ -128,21 +133,23 @@ static void newtab(
     tab.chld->cmd = g_cmd;
     tab.chld->home = g_home;
     struct winsize wsz{rows, cols, width, height};
-    child_create(tab.chld.get(), tab.terminal.get(),
-        g_argv, &wsz);
+    child_create(tab.chld.get(), tab.terminal.get(), g_argv, &wsz, cwd);
 }
 
 void win_tab_init(char* home, char* cmd, char** argv, int width, int height) {
     g_home = home;
     g_cmd = cmd;
     g_argv = argv;
-    newtab(cfg.rows, cfg.cols, width, height);
+    newtab(cfg.rows, cfg.cols, width, height, nullptr);
 }
 static void set_tab_bar_visibility(bool b);
 void win_tab_create() {
     auto& t = *tabs[active_tab].terminal;
-    // TODO: have nicer way of getting terminal size
-    newtab(t.rows, t.cols, t.cols * font_width, t.rows * font_height);
+    std::stringstream cwd_path;
+    cwd_path << "/proc/" << t.child->pid << "/cwd";
+    char* cwd = realpath(cwd_path.str().c_str(), 0);
+    newtab(t.rows, t.cols, t.cols * font_width, t.rows * font_height, cwd);
+    free(cwd);
     set_active_tab(tabs.size() - 1);
     set_tab_bar_visibility(tabs.size() > 1);
 }

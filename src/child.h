@@ -16,7 +16,7 @@ struct child
 };
 
 void child_create(struct child* child, struct term* term,
-    char *argv[], struct winsize *winp);
+    char *argv[], struct winsize *winp, const char* path);
 void child_free(struct child* child);
 void child_proc();
 void child_kill(bool point_blank);
