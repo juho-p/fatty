@@ -120,13 +120,22 @@ void child_proc() {
     }
 }
 
-void child_kill(bool point_blank) { 
+static void kill_all_tabs(bool point_blank=false) {
     for (Tab& tab : win_tabs()) {
         struct child* child = tab.chld.get();
         kill(-child->pid, point_blank ? SIGKILL : SIGHUP);
         child->killed = true;
     }
-    if (point_blank) exit(0);
+}
+
+void child_kill() { 
+    kill_all_tabs();
+    win_callback(500, []() {
+        // We are still here even after half a second?
+        // Really, lets just die. It would be really annoying not to...
+        kill_all_tabs(true);
+        exit(1);
+    });
 }
 
 void child_terminate(struct child* child) {

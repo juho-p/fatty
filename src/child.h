@@ -19,7 +19,7 @@ void child_create(struct child* child, struct term* term,
     char *argv[], struct winsize *winp, const char* path);
 void child_free(struct child* child);
 void child_proc();
-void child_kill(bool point_blank);
+void child_kill();
 void child_terminate(struct child* child);
 void child_write(struct child* child, const char *, unsigned int len);
 void child_printf(struct child* child, const char *fmt, ...) __attribute__((format(printf, 2, 3)));

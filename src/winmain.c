@@ -538,7 +538,7 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
     }
     when WM_CLOSE:
       if (!cfg.confirm_exit || confirm_exit())
-        child_kill((GetKeyState(VK_SHIFT) & 0x80) != 0);
+        child_kill();
       return 0;
     when WM_COMMAND or WM_SYSCOMMAND:
       switch (wp & ~0xF) {  /* low 4 bits reserved to Windows */
