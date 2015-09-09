@@ -293,3 +293,12 @@ void win_tab_mouse_click(int x) {
 std::vector<Tab>& win_tabs() {
     return tabs;
 }
+
+static void lambda_callback(void* data) {
+    auto callback = static_cast<std::function<void()>*>(data);
+    (*callback)();
+    delete callback;
+}
+void win_callback(unsigned int ticks, std::function<void()> callback) {
+    win_set_timer(lambda_callback, new std::function<void()>(callback), ticks);
+}

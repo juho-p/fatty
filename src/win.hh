@@ -18,6 +18,7 @@ typedef const wchar *wstring;
 #include <memory>
 #include <vector>
 #include <string>
+#include <functional>
 
 struct Tab {
     std::unique_ptr<term> terminal;
@@ -37,3 +38,4 @@ private:
 };
 
 std::vector<Tab>& win_tabs();
+void win_callback(unsigned int ticks, std::function<void()> callback);

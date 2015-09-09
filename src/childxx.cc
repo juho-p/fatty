@@ -131,6 +131,22 @@ void child_kill(bool point_blank) {
 
 void child_terminate(struct child* child) {
     kill(-child->pid, SIGKILL);
+
+    // Seems that sometimes cygwin leaves process in non-waitable and
+    // non-alive state. The result for that is that there will be
+    // unkillable tabs.
+    //
+    // This stupid hack solves the problem.
+    //
+    // TODO: Find out better way to solve this. Now the child processes are
+    // not always cleaned up.
+    int cpid = child->pid;
+    win_callback(50, [cpid]() {
+        auto& tabs = win_tabs();
+        for (auto& t : tabs) {
+            if (t.chld->pid == cpid) t.chld->pid = 0;
+        }
+    });
 }
 
 bool child_is_any_parent() {
