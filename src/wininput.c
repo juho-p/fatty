@@ -344,6 +344,7 @@ win_key_down(WPARAM wp, LPARAM lp)
     ralt = is_key_down(VK_RMENU),
     alt = lalt | ralt,
     rctrl = is_key_down(VK_RCONTROL),
+    lctrl = is_key_down(VK_LCONTROL),
     ctrl = lctrl | rctrl,
     ctrl_lalt_altgr = cfg.ctrl_alt_is_altgr & ctrl & lalt & !ralt,
     altgr = ralt | ctrl_lalt_altgr;
@@ -438,11 +439,12 @@ win_key_down(WPARAM wp, LPARAM lp)
         when 'C': term_copy(active_term);
         when 'V': win_paste();
         when 'N': send_syscommand(IDM_NEW);
-        when 'W': send_syscommand(SC_CLOSE);
         when 'R': send_syscommand(IDM_RESET);
         when 'D': send_syscommand(IDM_DEFSIZE);
         when 'F': send_syscommand(IDM_FULLSCREEN);
         when 'S': send_syscommand(IDM_FLIPSCREEN);
+        when 'T': win_tab_create();
+        when 'W': child_terminate(active_term->child);
       }
       return 1;
     }
@@ -712,7 +714,7 @@ win_key_down(WPARAM wp, LPARAM lp)
         return 1;
       }
       else
-        active_term->modify_other_keys ? other_code('\t') : mod_csi('I');        
+        active_term->modify_other_keys ? other_code('\t') : mod_csi('I');
     when VK_ESCAPE:
       active_term->app_escape_key
       ? ss3('[')
@@ -775,7 +777,6 @@ win_key_down(WPARAM wp, LPARAM lp)
       else app_pad_code(key - VK_NUMPAD0 + '0');
     when 'A' ... 'Z' or ' ':
       if (key != ' ' && alt_code_key(key - 'A' + 0xA));
-      else if (shift && ctrl && key == 'T') win_tab_create();
       else if (char_key());
       else if (active_term->modify_other_keys > 1) modify_other_key();
       else if (ctrl_key());
