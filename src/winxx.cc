@@ -88,17 +88,15 @@ static void invalidate_tabs() {
     win_invalidate_all();
 }
 
-term* term_at(unsigned int i) { return tabs.at(i).terminal.get(); }
-
 term* win_active_terminal() {
-    return tabs[active_tab].terminal.get();
+    return tabs.at(active_tab).terminal.get();
 }
 
 int win_tab_count() { return tabs.size(); }
 int win_active_tab() { return active_tab; }
 
 static void update_window_state() {
-    Tab& tab = tabs[active_tab];
+    Tab& tab = tabs.at(active_tab);
     win_update_menus();
     SetWindowTextW(wnd, tab.info.title.data());
     win_adapt_term_size();
@@ -106,7 +104,7 @@ static void update_window_state() {
 
 static void set_active_tab(unsigned int index) {
     active_tab = index;
-    Tab* active = &tabs[active_tab];
+    Tab* active = &tabs.at(active_tab);
     for (auto& tab : tabs) {
         term_set_focus(tab.terminal.get(), &tab == active);
     }
@@ -175,8 +173,7 @@ void win_tab_clean() {
         auto it = std::find_if(tabs.begin(), tabs.end(), [](Tab& x) {
                 return x.chld->pid == 0; });
         if (it == tabs.end()) break;
-        if (&*it == &tabs[active_tab])
-            invalidate = true;
+        invalidate = true;
         tabs.erase(it);
     }
     if (invalidate && tabs.size() > 0) {
@@ -184,8 +181,8 @@ void win_tab_clean() {
             set_active_tab(tabs.size() - 1);
         else
             set_active_tab(active_tab);
-        win_invalidate_all();
         set_tab_bar_visibility(tabs.size() > 1);
+        win_invalidate_all();
     }
 }
 
