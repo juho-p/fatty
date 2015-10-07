@@ -10,7 +10,7 @@ RC = windres
 
 CXXFLAGS ?= -Wall -Wextra -std=gnu++11
 CFLAGS ?= -std=gnu99 -include std.h -Wall -Wextra -Wundef -Werror
-LDFLAGS := -static-libgcc -mwindows -lcomctl32 -limm32 -lwinspool -lole32 -luuid
+LDFLAGS := -static-libgcc -mwindows -lcomctl32 -limm32 -lwinspool -lole32 -luuid -lD2d1
 
 TARGET := $(shell $(CC) -dumpmachine)
 CPPFLAGS := -DTARGET=$(TARGET)
