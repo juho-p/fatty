@@ -199,7 +199,7 @@ translate_pos(int x, int y)
 {
   return (pos){
     .x = floorf((x - PADDING) / (float)font_width ),
-    .y = floorf((y - PADDING - win_tab_height()) / (float)font_height),
+    .y = floorf((y - PADDING - g_render_tab_height) / (float)font_height),
   };
 }
 
@@ -215,7 +215,7 @@ get_mouse_pos(LPARAM lp)
 
 static bool tab_bar_click(LPARAM lp) {
   int y = GET_Y_LPARAM(lp);
-  if (y >= PADDING && y < PADDING + win_tab_height()) {
+  if (y >= PADDING && y < PADDING + g_render_tab_height) {
     win_tab_mouse_click(GET_X_LPARAM(lp));
     return true;
   }

@@ -84,6 +84,8 @@ bool font_ambig_wide;
 
 COLORREF colours[COLOUR_NUM];
 
+int g_render_tab_height = 0;
+
 static colour
 brighten(colour c)
 {
@@ -330,6 +332,10 @@ win_paint(void)
   PAINTSTRUCT p;
   dc = BeginPaint(wnd, &p);
 
+  // remember the tab height used for rendering. It could change, but we need
+  // to be consistent during with the visual state of things
+  g_render_tab_height = win_tab_height();
+
   term_invalidate(term,
     (p.rcPaint.left - PADDING) / font_width,
     (p.rcPaint.top - PADDING) / font_height,
@@ -355,7 +361,7 @@ win_paint(void)
 
     ExcludeClipRect(dc, PADDING, PADDING,
                     PADDING + font_width * term->cols,
-                    PADDING + win_tab_height() + font_height * term->rows);
+                    PADDING + g_render_tab_height + font_height * term->rows);
 
     Rectangle(dc, p.rcPaint.left, p.rcPaint.top,
                   p.rcPaint.right, p.rcPaint.bottom);
@@ -514,7 +520,7 @@ win_text(int x, int y, wchar *text, int len, cattr attr, int lattr)
 
  /* Convert to window coordinates */
   x = x * char_width + PADDING;
-  y = y * font_height + PADDING + win_tab_height();
+  y = y * font_height + PADDING + g_render_tab_height;
 
   if (attr.attr & ATTR_WIDE)
     char_width *= 2;

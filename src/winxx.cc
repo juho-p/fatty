@@ -225,6 +225,7 @@ static void set_tab_bar_visibility(bool b) {
     if (b == tab_bar_visible) return;
 
     tab_bar_visible = b;
+    g_render_tab_height = win_tab_height();
     fix_window_size();
     win_invalidate_all();
 }
@@ -249,17 +250,16 @@ static int tab_paint_width = 0;
 void win_paint_tabs(HDC dc, int width) {
     if (!tab_bar_visible) return;
 
-    InitScaleFactors();
-
     const auto bg = RGB(0,0,0);
     const auto fg = RGB(0,255,0);
     const auto active_bg = RGB(50, 50, 50);
     const auto attention_bg = RGB(0, 50, 0);
 
     const int tabwidth = width / tabs.size();
+    const int tabheight = g_render_tab_height;
     tab_paint_width = tabwidth;
     RECT tabrect;
-    SetRect(&tabrect, 0, 0, tabwidth, tabheight());
+    SetRect(&tabrect, 0, 0, tabwidth, tabheight);
 
     HDC bufdc = CreateCompatibleDC(dc);
     SetBkMode(bufdc, TRANSPARENT);
@@ -270,7 +270,7 @@ void win_paint_tabs(HDC dc, int width) {
         auto obrush = SelectWObj(bufdc, brush);
         auto open = SelectWObj(bufdc, CreatePen(PS_SOLID, 0, fg));
         auto obuf = SelectWObj(bufdc,
-                CreateCompatibleBitmap(dc, tabwidth, tabheight()+1));
+                CreateCompatibleBitmap(dc, tabwidth, tabheight+1));
         // i just wanna set font size :(
         // hmm, maybe I should use CreateFontEx instead to get more params??
         // nice API, thanks Bill!
@@ -289,7 +289,7 @@ void win_paint_tabs(HDC dc, int width) {
                 FillRect(bufdc, &tabrect, brush);
             }
             paint_tab(bufdc, tabwidth, tabs[i]);
-            BitBlt(dc, i*tabwidth, 0, tabwidth, tabheight()+1,
+            BitBlt(dc, i*tabwidth, 0, tabwidth, tabheight+1,
                     bufdc, 0, 0, SRCCOPY);
         }
     }

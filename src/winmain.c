@@ -320,7 +320,7 @@ win_adapt_term_size(void)
   extra_width = wr.right - wr.left - client_width;
   extra_height = wr.bottom - wr.top - client_height;
   int term_width = client_width - 2 * PADDING;
-  int term_height = client_height - 2 * PADDING - win_tab_height();
+  int term_height = client_height - 2 * PADDING - g_render_tab_height;
   int cols = max(1, term_width / font_width);
   int rows = max(1, term_height / font_height);
   struct term* term = win_active_terminal();
@@ -639,7 +639,7 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
       */
       LPRECT r = (LPRECT) lp;
       int width = r->right - r->left - extra_width - 2 * PADDING;
-      int height = r->bottom - r->top - extra_height - 2 * PADDING - win_tab_height();
+      int height = r->bottom - r->top - extra_height - 2 * PADDING - g_render_tab_height;
       int cols = max(1, (float)width / font_width + 0.5);
       int rows = max(1, (float)height / font_height + 0.5);
 

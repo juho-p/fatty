@@ -20,6 +20,8 @@ extern LOGFONT lfont;
 
 extern int font_width, font_height;
 
+extern int g_render_tab_height; // current tab height in pixels
+
 enum { PADDING = 1 };
 
 void win_paint(void);
