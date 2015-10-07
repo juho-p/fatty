@@ -12,6 +12,8 @@
 
 #include "win.hh"
 
+#include <D2d1.h>
+
 extern "C" {
 #include "winpriv.h"
 }
@@ -27,6 +29,19 @@ static CallbackSet callbacks;
 static std::vector<Tab> tabs;
 static unsigned int active_tab = 0;
 
+static float g_xScale, g_yScale;
+static ID2D1Factory* g_Direct2dFactory = nullptr;
+
+static void InitScaleFactors() {
+    if (g_Direct2dFactory == nullptr) {
+        D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &g_Direct2dFactory);
+    }
+    float xdpi, ydpi;
+    g_Direct2dFactory->ReloadSystemMetrics();
+    g_Direct2dFactory->GetDesktopDpi(&xdpi, &ydpi);
+    g_xScale = xdpi / 96.0f;
+    g_yScale = ydpi / 96.0f;
+}
 
 Tab::Tab() : terminal(new term), chld(new child) {
     memset(terminal.get(), 0, sizeof(struct term));
@@ -189,7 +204,10 @@ void win_tab_title(struct term* term, wchar_t* title) {
 
 bool win_should_die() { return tabs.size() == 0; }
 
-const int tabheight = 18;
+static int tabheight() {
+    InitScaleFactors();
+    return 18 * g_yScale;
+}
 
 static bool tab_bar_visible = false;
 static void fix_window_size() {
@@ -210,12 +228,12 @@ static void set_tab_bar_visibility(bool b) {
     fix_window_size();
     win_invalidate_all();
 }
-int win_tab_height() { return tab_bar_visible ? tabheight : 0; }
+int win_tab_height() { return tab_bar_visible ? tabheight() : 0; }
 
 // paint a tab to dc (where dc draws to buffer)
 static void paint_tab(HDC dc, int width, const Tab& tab) {
     MoveToEx(dc, 0, 0, nullptr);
-    LineTo(dc, 0, tabheight);
+    LineTo(dc, 0, tabheight());
     TextOutW(dc, width/2, 1, tab.info.title.data(), tab.info.title.size());
 }
 
@@ -231,6 +249,8 @@ static int tab_paint_width = 0;
 void win_paint_tabs(HDC dc, int width) {
     if (!tab_bar_visible) return;
 
+    InitScaleFactors();
+
     const auto bg = RGB(0,0,0);
     const auto fg = RGB(0,255,0);
     const auto active_bg = RGB(50, 50, 50);
@@ -239,7 +259,7 @@ void win_paint_tabs(HDC dc, int width) {
     const int tabwidth = width / tabs.size();
     tab_paint_width = tabwidth;
     RECT tabrect;
-    SetRect(&tabrect, 0, 0, tabwidth, tabheight);
+    SetRect(&tabrect, 0, 0, tabwidth, tabheight());
 
     HDC bufdc = CreateCompatibleDC(dc);
     SetBkMode(bufdc, TRANSPARENT);
@@ -250,11 +270,11 @@ void win_paint_tabs(HDC dc, int width) {
         auto obrush = SelectWObj(bufdc, brush);
         auto open = SelectWObj(bufdc, CreatePen(PS_SOLID, 0, fg));
         auto obuf = SelectWObj(bufdc,
-                CreateCompatibleBitmap(dc, tabwidth, tabheight+1));
+                CreateCompatibleBitmap(dc, tabwidth, tabheight()+1));
         // i just wanna set font size :(
         // hmm, maybe I should use CreateFontEx instead to get more params??
         // nice API, thanks Bill!
-        auto ofont = SelectWObj(bufdc, CreateFont(14,0,0,0,0,0,0,0,1,0,0,0,0,0));
+        auto ofont = SelectWObj(bufdc, CreateFont(14 * g_yScale,0,0,0,0,0,0,0,1,0,0,CLEARTYPE_QUALITY,0,0));
 
         for (size_t i = 0; i < tabs.size(); i++) {
             if (i == active_tab) {
@@ -269,7 +289,7 @@ void win_paint_tabs(HDC dc, int width) {
                 FillRect(bufdc, &tabrect, brush);
             }
             paint_tab(bufdc, tabwidth, tabs[i]);
-            BitBlt(dc, i*tabwidth, 0, tabwidth, tabheight+1,
+            BitBlt(dc, i*tabwidth, 0, tabwidth, tabheight()+1,
                     bufdc, 0, 0, SRCCOPY);
         }
     }
