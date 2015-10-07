@@ -12,6 +12,7 @@ using tabs.
 
 * Most features from mintty should work
 * To create new tab, press ctrl-shift-T
+* ctrl-shift-W closes the tab
 * To change active tab, click it with mouse or press shift-(left arrow|right arrow)
 * To move tab, press ctrl-shift-(arrow direction)
 
@@ -20,7 +21,7 @@ send pull requests
 
 ###Installing
 
-To install, run cygwin setup*.exe and have at least following packages marked for
+To install, run cygwin setup\*.exe and have at least following packages marked for
 install:
 
 * gcc-g++
@@ -28,14 +29,18 @@ install:
 * win32api-headers
 * git
 
-Then, run in Cygwin terminal run following commands:
+Then, in Cygwin terminal run following commands:
 
     git clone https://github.com/juho-p/fatty.git
     cd fatty
     make
     cp src/fatty.exe /bin
   
-  You can then try running it by typing `fatty`
+You can then try running it by typing `fatty`
   
-  Then you probably want to create shortcut to your Windows desktop to run fatty.
-  After that, you have decent terminal with tabs for your Cygwin!
+Then you probably want to create shortcut to your Windows desktop to run fatty.
+After that, you have decent terminal with tabs for your Cygwin!
+
+You might also want to remove the line `cd "${HOME}"` from `/etc/profile` (if
+there are such line) if you want your new tabs to open same directory as your
+current tab.
