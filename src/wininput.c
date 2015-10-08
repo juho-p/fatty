@@ -344,7 +344,6 @@ win_key_down(WPARAM wp, LPARAM lp)
     ralt = is_key_down(VK_RMENU),
     alt = lalt | ralt,
     rctrl = is_key_down(VK_RCONTROL),
-    lctrl = is_key_down(VK_LCONTROL),
     ctrl = lctrl | rctrl,
     ctrl_lalt_altgr = cfg.ctrl_alt_is_altgr & ctrl & lalt & !ralt,
     altgr = ralt | ctrl_lalt_altgr;
