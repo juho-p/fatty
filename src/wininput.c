@@ -252,6 +252,7 @@ win_mouse_click(mouse_button b, LPARAM lp)
 void
 win_mouse_release(mouse_button b, LPARAM lp)
 {
+  if (tab_bar_click(lp)) return;
   term_mouse_release(win_active_terminal(), b, get_mods(), get_mouse_pos(lp));
   ReleaseCapture();
 }
