@@ -149,13 +149,19 @@ static void newtab(
     child_create(tab.chld.get(), tab.terminal.get(), g_argv, &wsz, cwd);
 }
 
+static void set_tab_bar_visibility(bool b);
+
+void win_tab_set_argv(char** argv) {
+    g_argv = argv;
+}
+
 void win_tab_init(char* home, char* cmd, char** argv, int width, int height) {
     g_home = home;
     g_cmd = cmd;
     g_argv = argv;
     newtab(cfg.rows, cfg.cols, width, height, nullptr);
+    set_tab_bar_visibility(tabs.size() > 1);
 }
-static void set_tab_bar_visibility(bool b);
 void win_tab_create() {
     auto& t = *tabs[active_tab].terminal;
     std::stringstream cwd_path;
