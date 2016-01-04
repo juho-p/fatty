@@ -695,6 +695,7 @@ static const char help[] =
   "If a dash is given instead of a program, invoke the shell as a login shell.\n"
   "\n"
   "Options:\n"
+  "  -b, --tab COMMAND     Spawn a new tab and execute the command\n"
   "  -c, --config FILE     Load specified config file\n"
   "  -e, --exec            Treat remaining arguments as the command to execute\n"
   "  -h, --hold never|start|error|always  Keep window open after command finishes\n"
@@ -711,10 +712,11 @@ static const char help[] =
   "  -V, --version         Print version information and exit\n"
 ;
 
-static const char short_opts[] = "+:c:eh:i:l:o:p:s:t:T:uw:HV";
+static const char short_opts[] = "+:b:c:eh:i:l:o:p:s:t:T:uw:HV:";
 
 static const struct option
 opts[] = {
+  {"tab",      required_argument, 0, 'b'},
   {"config",   required_argument, 0, 'c'},
   {"exec",     no_argument,       0, 'e'},
   {"hold",     required_argument, 0, 'h'},
@@ -801,6 +803,9 @@ main(int argc, char *argv[])
   load_config(rc_file);
   delete(rc_file);
 
+  char *tablist[32];
+  int current_tab_size = 0;
+
   for (;;) {
     int opt = getopt_long(argc, argv, short_opts, opts, 0);
     if (opt == -1 || opt == 'e')
@@ -826,6 +831,9 @@ main(int argc, char *argv[])
         title_settable = false;
       when 'u': cfg.utmp = true;
       when 'w': set_arg_option("Window", optarg);
+      when 'b':
+        tablist[current_tab_size] = optarg;
+        current_tab_size++;
       when 'C': set_arg_option("Class", optarg);
       when 'H':
         show_msg(stdout, help);
@@ -1044,7 +1052,22 @@ main(int argc, char *argv[])
   }
 
   // Initialise the terminal.
-  win_tab_init(home, cmd, argv, term_width, term_height);
+
+  if (current_tab_size == 0) {
+    win_tab_init(home, cmd, argv, term_width, term_height);
+  }
+  else {
+    for (int i = 0; i < current_tab_size; i++) {
+      if (tablist[i] != NULL) {
+        char *tabexec = tablist[i];
+        char *tab_argv[4] = { cmd, "-c", tabexec, NULL };
+ 
+        win_tab_init(home, cmd, tab_argv, term_width, term_height);
+      }
+    }
+
+    win_tab_set_argv(argv);
+  }
 
   term_initialized = 1;
 
