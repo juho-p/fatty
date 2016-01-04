@@ -1053,6 +1053,10 @@ main(int argc, char *argv[])
 
   // Initialise the terminal.
 
+  // TODO: should refactor win_tab_init to just initialize tabs-system and
+  // create tabls with separate function (more general version of
+  // win_tab_create. Would be cleaner and no need for win_tab_set_argv etc
+
   if (current_tab_size == 0) {
     win_tab_init(home, cmd, argv, term_width, term_height);
   }
