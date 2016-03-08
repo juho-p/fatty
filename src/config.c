@@ -22,6 +22,10 @@ const config default_cfg = {
   // Looks
   .fg_colour = 0xBFBFBF,
   .bg_colour = 0x000000,
+  .tab_fg_colour = 0x00FF00,
+  .tab_bg_colour = 0x000000,
+  .tab_active_bg_colour = 0x323232,
+  .tab_attention_bg_colour = 0x003200,
   .cursor_colour = 0xBFBFBF,
   .transparency = 0,
   .opaque_when_focused = false,
@@ -135,6 +139,11 @@ options[] = {
   {"OpaqueWhenFocused", OPT_BOOL, offcfg(opaque_when_focused)},
   {"CursorType", OPT_CURSOR, offcfg(cursor_type)},
   {"CursorBlinks", OPT_BOOL, offcfg(cursor_blinks)},
+
+  {"TabForegroundColour", OPT_COLOUR, offcfg(tab_fg_colour)},
+  {"TabBackgroundColour", OPT_COLOUR, offcfg(tab_bg_colour)},
+  {"TabAttentionColour", OPT_COLOUR, offcfg(tab_attention_bg_colour)},
+  {"TabActiveColour", OPT_COLOUR, offcfg(tab_active_bg_colour)},
 
   // Text
   {"Font", OPT_STRING, offcfg(font.name)},

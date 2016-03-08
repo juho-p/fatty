@@ -43,6 +43,7 @@ typedef struct {
 typedef struct {
   // Looks
   colour fg_colour, bg_colour, cursor_colour;
+  colour tab_fg_colour, tab_bg_colour, tab_attention_bg_colour, tab_active_bg_colour;
   char transparency;
   bool opaque_when_focused;
   char cursor_type;

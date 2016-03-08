@@ -253,10 +253,10 @@ static int tab_paint_width = 0;
 void win_paint_tabs(HDC dc, int width) {
     if (!tab_bar_visible) return;
 
-    const auto bg = RGB(0,0,0);
-    const auto fg = RGB(0,255,0);
-    const auto active_bg = RGB(50, 50, 50);
-    const auto attention_bg = RGB(0, 50, 0);
+    const auto bg = cfg.tab_bg_colour;
+    const auto fg = cfg.tab_fg_colour;
+    const auto active_bg = cfg.tab_active_bg_colour;
+    const auto attention_bg = cfg.tab_attention_bg_colour;
 
     const int tabwidth = width / tabs.size();
     const int tabheight = g_render_tab_height;
