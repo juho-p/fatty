@@ -13,7 +13,7 @@ CFLAGS ?= -std=gnu99 -include std.h -Wall -Wextra -Wundef -Werror
 LDFLAGS := -static-libgcc -mwindows -lcomctl32 -limm32 -lwinspool -lole32 -luuid -lD2d1
 
 TARGET := $(shell $(CC) -dumpmachine)
-CPPFLAGS := -DTARGET=$(TARGET)
+CPPFLAGS := -DTARGET=$(TARGET) -D_GNU_SOURCE
 
 BUILD_DIR = build/
 
