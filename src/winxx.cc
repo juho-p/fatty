@@ -32,7 +32,7 @@ static unsigned int active_tab = 0;
 static float g_xScale, g_yScale;
 static ID2D1Factory* g_Direct2dFactory = nullptr;
 
-static void InitScaleFactors() {
+static void init_scale_factors() {
     if (g_Direct2dFactory == nullptr) {
         D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &g_Direct2dFactory);
     }
@@ -208,7 +208,7 @@ void win_tab_title(struct term* term, wchar_t* title) {
 bool win_should_die() { return tabs.size() == 0; }
 
 static int tabheight() {
-    InitScaleFactors();
+    init_scale_factors();
     return 18 * g_yScale;
 }
 
@@ -249,6 +249,18 @@ struct SelectWObj {
     ~SelectWObj() { DeleteObject(SelectObject(tdc, old)); }
 };
 
+static int tab_font_size() {
+    return 14 * g_yScale;
+}
+
+static HGDIOBJ new_tab_font() {
+    return CreateFont(tab_font_size(),0,0,0,FW_NORMAL,0,0,0,1,0,0,CLEARTYPE_QUALITY,0,0);
+}
+
+static HGDIOBJ new_active_tab_font() {
+    return CreateFont(tab_font_size(),0,0,0,FW_BOLD,0,0,0,1,0,0,CLEARTYPE_QUALITY,0,0);
+}
+
 static int tab_paint_width = 0;
 void win_paint_tabs(HDC dc, int width) {
     if (!tab_bar_visible) return;
@@ -274,13 +286,12 @@ void win_paint_tabs(HDC dc, int width) {
         auto open = SelectWObj(bufdc, CreatePen(PS_SOLID, 0, fg));
         auto obuf = SelectWObj(bufdc,
                 CreateCompatibleBitmap(dc, tabwidth, tabheight+1));
-        // i just wanna set font size :(
-        // hmm, maybe I should use CreateFontEx instead to get more params??
-        // nice API, thanks Bill!
-        auto ofont = SelectWObj(bufdc, CreateFont(14 * g_yScale,0,0,0,0,0,0,0,1,0,0,CLEARTYPE_QUALITY,0,0));
+
+        auto ofont = SelectWObj(bufdc, new_tab_font());
 
         for (size_t i = 0; i < tabs.size(); i++) {
-            if (i == active_tab) {
+            bool  active = i == active_tab;
+            if (active) {
                 auto activebrush = CreateSolidBrush(active_bg);
                 FillRect(bufdc, &tabrect, activebrush);
                 DeleteObject(activebrush);
@@ -291,7 +302,14 @@ void win_paint_tabs(HDC dc, int width) {
             } else {
                 FillRect(bufdc, &tabrect, brush);
             }
-            paint_tab(bufdc, tabwidth, tabs[i]);
+
+            if (active) {
+                auto _f = SelectWObj(bufdc, new_active_tab_font());
+                paint_tab(bufdc, tabwidth, tabs[i]);
+            } else {
+                paint_tab(bufdc, tabwidth, tabs[i]);
+            }
+
             BitBlt(dc, i*tabwidth, 0, tabwidth, tabheight+1,
                     bufdc, 0, 0, SRCCOPY);
         }
