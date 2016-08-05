@@ -33,6 +33,12 @@ win_update_menus(void)
     alt_fn ? "&Close\tAlt+F4" : ct_sh ? "&Close\tCtrl+Shift+W" : "&Close"
   );
 
+  uint switch_move_enabled = win_tab_count() == 1;
+  EnableMenuItem(menu, IDM_PREVTAB, switch_move_enabled);
+  EnableMenuItem(menu, IDM_NEXTTAB, switch_move_enabled);
+  EnableMenuItem(menu, IDM_MOVELEFT, switch_move_enabled);
+  EnableMenuItem(menu, IDM_MOVERIGHT, switch_move_enabled);
+  
   uint sel_enabled = term->selected ? MF_ENABLED : MF_GRAYED;
   EnableMenuItem(menu, IDM_OPEN, sel_enabled);
   ModifyMenu(
@@ -90,6 +96,11 @@ win_init_menus(void)
   AppendMenu(menu, MF_ENABLED, IDM_OPEN, "Ope&n");
   AppendMenu(menu, MF_ENABLED, IDM_NEWTAB, "New tab\tCtrl+Shift+T");
   AppendMenu(menu, MF_ENABLED, IDM_KILLTAB, "Kill tab");
+  AppendMenu(menu, MF_SEPARATOR, 0, 0);
+  AppendMenu(menu, MF_ENABLED, IDM_PREVTAB, "Previous tab\tShift+<-");
+  AppendMenu(menu, MF_ENABLED, IDM_NEXTTAB, "Next tab\tShift+->");
+  AppendMenu(menu, MF_ENABLED, IDM_MOVELEFT, "Move to left\tCtrl+Shift+<-");
+  AppendMenu(menu, MF_ENABLED, IDM_MOVERIGHT, "Next to right\tCtrl+Shift+->");
   AppendMenu(menu, MF_SEPARATOR, 0, 0);
   AppendMenu(menu, MF_ENABLED, IDM_COPY, 0);
   AppendMenu(menu, MF_ENABLED, IDM_PASTE, 0);
