@@ -23,4 +23,9 @@
 #define IDM_NEWTAB      0x00c0
 #define IDM_KILLTAB      0x00d0
 
+#define IDM_PREVTAB     0x00e0
+#define IDM_NEXTTAB     0x00f0
+#define IDM_MOVELEFT    0x0100
+#define IDM_MOVERIGHT   0x0110
+
 #endif

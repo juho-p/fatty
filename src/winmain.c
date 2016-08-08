@@ -555,6 +555,10 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
         when IDM_COPYTITLE: win_copy_title();
         when IDM_NEWTAB: win_tab_create();
         when IDM_KILLTAB: child_terminate(term->child);
+        when IDM_PREVTAB: win_tab_change(-1);
+        when IDM_NEXTTAB: win_tab_change(+1);
+        when IDM_MOVELEFT: win_tab_move(-1);
+        when IDM_MOVERIGHT: win_tab_move(+1);
       }
     when WM_VSCROLL:
       switch (LOWORD(wp)) {
@@ -1065,7 +1069,7 @@ main(int argc, char *argv[])
       if (tablist[i] != NULL) {
         char *tabexec = tablist[i];
         char *tab_argv[4] = { cmd, "-c", tabexec, NULL };
- 
+
         win_tab_init(home, cmd, tab_argv, term_width, term_height);
       }
     }
