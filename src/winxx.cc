@@ -12,7 +12,7 @@
 
 #include "win.hh"
 
-#include <D2d1.h>
+#include <d2d1.h>
 
 extern "C" {
 #include "winpriv.h"
