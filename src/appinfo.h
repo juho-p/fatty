@@ -5,7 +5,7 @@
 #define WEBSITE "http://github.com/juho-p/fatty"
 
 #define MAJOR_VERSION  1
-#define MINOR_VERSION  5
+#define MINOR_VERSION  6
 #define PATCH_NUMBER   0
 
 // needed for res.rc
