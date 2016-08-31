@@ -29,18 +29,18 @@ static CallbackSet callbacks;
 static std::vector<Tab> tabs;
 static unsigned int active_tab = 0;
 
-static float g_xScale, g_yScale;
-static ID2D1Factory* g_Direct2dFactory = nullptr;
+static float g_xscale, g_yscale;
 
 static void init_scale_factors() {
-    if (g_Direct2dFactory == nullptr) {
-        D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &g_Direct2dFactory);
+    static ID2D1Factory* d2d_factory = nullptr;
+    if (d2d_factory == nullptr) {
+        D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &d2d_factory);
     }
     float xdpi, ydpi;
-    g_Direct2dFactory->ReloadSystemMetrics();
-    g_Direct2dFactory->GetDesktopDpi(&xdpi, &ydpi);
-    g_xScale = xdpi / 96.0f;
-    g_yScale = ydpi / 96.0f;
+    d2d_factory->ReloadSystemMetrics();
+    d2d_factory->GetDesktopDpi(&xdpi, &ydpi);
+    g_xscale = xdpi / 96.0f;
+    g_yscale = ydpi / 96.0f;
 }
 
 Tab::Tab() : terminal(new term), chld(new child) {
@@ -209,7 +209,7 @@ bool win_should_die() { return tabs.size() == 0; }
 
 static int tabheight() {
     init_scale_factors();
-    return 18 * g_yScale;
+    return 18 * g_yscale;
 }
 
 static bool tab_bar_visible = false;
@@ -250,7 +250,7 @@ struct SelectWObj {
 };
 
 static int tab_font_size() {
-    return 14 * g_yScale;
+    return 14 * g_yscale;
 }
 
 static HGDIOBJ new_tab_font() {
