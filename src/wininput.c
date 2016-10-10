@@ -721,7 +721,10 @@ win_key_down(WPARAM wp, LPARAM lp)
       if (!ctrl)
         shift ? csi('Z') : ch('\t');
       else if (cfg.switch_shortcuts) {
-        win_switch(shift);
+        if(shift)
+            win_tab_change(-1);
+        else
+            win_tab_change(1);
         return 1;
       }
       else
