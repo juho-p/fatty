@@ -960,7 +960,7 @@ setup_config_box(controlbox * b)
     dlg_stdcheckbox_handler, &new_cfg.window_shortcuts
   );
   ctrl_checkbox(
-    s, "&Switch window (Ctrl+[Shift+]Tab)",
+    s, "&Switch tab (Ctrl+[Shift+]Tab)",
     dlg_stdcheckbox_handler, &new_cfg.switch_shortcuts
   );
   ctrl_checkbox(

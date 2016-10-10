@@ -95,7 +95,7 @@ win_init_menus(void)
   menu = CreatePopupMenu();
   AppendMenu(menu, MF_ENABLED, IDM_OPEN, "Ope&n");
   AppendMenu(menu, MF_ENABLED, IDM_NEWTAB, "New tab\tCtrl+Shift+T");
-  AppendMenu(menu, MF_ENABLED, IDM_KILLTAB, "Kill tab");
+  AppendMenu(menu, MF_ENABLED, IDM_KILLTAB, "Kill tab\tCtrl+Shift+W");
   AppendMenu(menu, MF_SEPARATOR, 0, 0);
   AppendMenu(menu, MF_ENABLED, IDM_PREVTAB, "Previous tab\tShift+<-");
   AppendMenu(menu, MF_ENABLED, IDM_NEXTTAB, "Next tab\tShift+->");
@@ -104,7 +104,7 @@ win_init_menus(void)
   AppendMenu(menu, MF_SEPARATOR, 0, 0);
   AppendMenu(menu, MF_ENABLED, IDM_COPY, 0);
   AppendMenu(menu, MF_ENABLED, IDM_PASTE, 0);
-  AppendMenu(menu, MF_ENABLED, IDM_SELALL, "Select &All");
+  AppendMenu(menu, MF_ENABLED, IDM_SELALL, "Select &All\tCtrl+Shift+A");
   AppendMenu(menu, MF_SEPARATOR, 0, 0);
   AppendMenu(menu, MF_ENABLED, IDM_RESET, 0);
   AppendMenu(menu, MF_SEPARATOR, 0, 0);
@@ -721,7 +721,10 @@ win_key_down(WPARAM wp, LPARAM lp)
       if (!ctrl)
         shift ? csi('Z') : ch('\t');
       else if (cfg.switch_shortcuts) {
-        win_switch(shift);
+        if(shift)
+            win_tab_change(-1);
+        else
+            win_tab_change(1);
         return 1;
       }
       else
@@ -790,6 +793,7 @@ win_key_down(WPARAM wp, LPARAM lp)
       if (key != ' ' && alt_code_key(key - 'A' + 0xA));
       else if (shift && ctrl && key == 'T') win_tab_create();
       else if (shift && ctrl && key == 'W') child_terminate(active_term->child);
+      else if (shift && ctrl && key == 'A') {term_select_all(active_term); win_update();}
       else if (char_key());
       else if (active_term->modify_other_keys > 1) modify_other_key();
       else if (ctrl_key());

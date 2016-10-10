@@ -130,40 +130,6 @@ win_restore_title(void)
   }
 }
 
-/*
- *  Switch to next or previous application window in z-order
- */
-
-static HWND first_wnd, last_wnd;
-
-static BOOL CALLBACK
-wnd_enum_proc(HWND curr_wnd, LPARAM unused(lp)) {
-  if (curr_wnd != wnd && !IsIconic(curr_wnd)) {
-    WINDOWINFO curr_wnd_info;
-    curr_wnd_info.cbSize = sizeof(WINDOWINFO);
-    GetWindowInfo(curr_wnd, &curr_wnd_info);
-    if (class_atom == curr_wnd_info.atomWindowType) {
-      first_wnd = first_wnd ?: curr_wnd;
-      last_wnd = curr_wnd;
-    }
-  }
-  return true;
-}
-
-void
-win_switch(bool back)
-{
-  first_wnd = 0, last_wnd = 0;
-  EnumWindows(wnd_enum_proc, 0);
-  if (first_wnd) {
-    if (back)
-      first_wnd = last_wnd;
-    else
-      SetWindowPos(wnd, last_wnd, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-    BringWindowToTop(first_wnd);
-  }
-}
-
 static void
 get_monitor_info(MONITORINFO *mip)
 {
