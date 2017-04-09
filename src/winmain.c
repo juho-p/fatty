@@ -124,6 +124,7 @@ win_restore_title(void)
   wstring title = titles[--titles_i];
   if (title) {
     SetWindowTextW(wnd, title);
+    win_tab_title(win_active_terminal(), (wchar_t *)title);
     delete(title);
     titles[titles_i] = 0;
   }
