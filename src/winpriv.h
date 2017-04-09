@@ -60,7 +60,7 @@ bool win_is_fullscreen;
 void win_process_timer_message(WPARAM message);
 
 void win_tab_set_argv(char** argv);
-void win_tab_init(char* home, char* cmd, char** argv, int width, int height);
+void win_tab_init(char* home, char* cmd, char** argv, int width, int height, char* title);
 int win_tab_count();
 int win_active_tab();
 void win_tab_change(int change);

@@ -31,7 +31,6 @@ static ATOM class_atom;
 static int extra_width, extra_height;
 static bool fullscr_on_max;
 static bool resizing;
-static bool title_settable = true;
 
 static HBITMAP caretbm;
 
@@ -84,7 +83,7 @@ win_set_title(struct term* term, char *title)
 {
   wchar wtitle[strlen(title) + 1];
   if (cs_mbstowcs(wtitle, title, lengthof(wtitle)) >= 0) {
-    if (term == win_active_terminal() && title_settable)
+    if (term == win_active_terminal() && cfg.title_settable)
       SetWindowTextW(wnd, wtitle);
     win_tab_title(term, wtitle);
   }
@@ -526,6 +525,35 @@ confirm_exit(void)
   return !ret || ret == IDOK;
 }
 
+static bool
+confirm_tab_exit(void)
+{
+  if (!child_is_parent(win_active_terminal()->child))
+    return true;
+
+  int ret =
+    MessageBox(
+      wnd,
+      "Processes are running in active tab.\n"
+      "Close anyway?",
+      APPNAME, MB_ICONWARNING | MB_OKCANCEL | MB_DEFBUTTON2
+    );
+
+  // Treat failure to show the dialog as confirmation.
+  return !ret || ret == IDOK;
+}
+
+static int
+confirm_multi_tab(void)
+{
+  return MessageBox(
+           wnd,
+           "Mutiple tab opened.\n"
+           "Close all the tabs?",
+           APPNAME, MB_ICONWARNING | MB_YESNOCANCEL | MB_DEFBUTTON3
+         );
+}
+
 static LRESULT CALLBACK
 win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
 {
@@ -537,6 +565,18 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
       return 0;
     }
     when WM_CLOSE:
+      if (win_tab_count() > 1) {
+        switch (confirm_multi_tab()) {
+          when IDNO:
+            if (!cfg.confirm_exit || confirm_tab_exit()) {
+              kill(term->child->pid, SIGKILL);
+              term->child->killed = true;
+            }
+            return 0;
+          when IDCANCEL:
+            return 0;
+        }
+      }
       if (!cfg.confirm_exit || confirm_exit())
         child_kill();
       return 0;
@@ -708,7 +748,9 @@ static const char help[] =
   "  -o, --option OPT=VAL  Override config file option with given value\n"
   "  -p, --position X,Y    Open window at specified coordinates\n"
   "  -s, --size COLS,ROWS  Set screen size in characters\n"
-  "  -t, --title TITLE     Set window title (default: the invoked command)\n"
+  "  -T, --Title TITLE     Set window title (default: the invoked command)\n"
+  "  -t, --title TITLE     Set tab title (default: the invoked command)\n"
+  "                        Must be set before -b/--tab option\n"
   "  -u, --utmp            Create a utmp entry\n"
   "  -w, --window normal|min|max|full|hide  Set initial window state\n"
   "      --class CLASS     Set window class name (default: " APPNAME ")\n"
@@ -808,7 +850,11 @@ main(int argc, char *argv[])
   delete(rc_file);
 
   char *tablist[32];
+  char *tablist_title[32];
   int current_tab_size = 0;
+  
+  for (int i = 0; i < 32; i++)
+    tablist_title[i] = NULL;
 
   for (;;) {
     int opt = getopt_long(argc, argv, short_opts, opts, 0);
@@ -829,10 +875,11 @@ main(int argc, char *argv[])
           error("syntax error in size argument '%s'", optarg);
         remember_arg("Columns");
         remember_arg("Rows");
-      when 't': set_arg_option("Title", optarg);
+      when 't':
+        tablist_title[current_tab_size] = optarg;
       when 'T':
         set_arg_option("Title", optarg);
-        title_settable = false;
+        cfg.title_settable = false;
       when 'u': cfg.utmp = true;
       when 'w': set_arg_option("Window", optarg);
       when 'b':
@@ -1062,7 +1109,7 @@ main(int argc, char *argv[])
   // win_tab_create. Would be cleaner and no need for win_tab_set_argv etc
 
   if (current_tab_size == 0) {
-    win_tab_init(home, cmd, argv, term_width, term_height);
+    win_tab_init(home, cmd, argv, term_width, term_height, tablist_title[0]);
   }
   else {
     for (int i = 0; i < current_tab_size; i++) {
@@ -1070,7 +1117,7 @@ main(int argc, char *argv[])
         char *tabexec = tablist[i];
         char *tab_argv[4] = { cmd, "-c", tabexec, NULL };
 
-        win_tab_init(home, cmd, tab_argv, term_width, term_height);
+        win_tab_init(home, cmd, tab_argv, term_width, term_height, tablist_title[i]);
       }
     }
 

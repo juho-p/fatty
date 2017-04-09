@@ -100,6 +100,7 @@ typedef struct {
   string icon;
   string log;
   string title;
+  bool title_settable;
   bool utmp;
   char window;
   int x, y;

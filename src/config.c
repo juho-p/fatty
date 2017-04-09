@@ -85,6 +85,7 @@ const config default_cfg = {
   .log = "",
   .utmp = false,
   .title = "",
+  .title_settable = true,
   // "Hidden"
   .app_id = "",
   .col_spacing = 0,
@@ -205,6 +206,7 @@ options[] = {
   {"Icon", OPT_STRING, offcfg(icon)},
   {"Log", OPT_STRING, offcfg(log)},
   {"Title", OPT_STRING, offcfg(title)},
+  {"TitleSettable", OPT_BOOL, offcfg(title_settable)},
   {"Utmp", OPT_BOOL, offcfg(utmp)},
   {"Window", OPT_WINDOW, offcfg(window)},
   {"X", OPT_INT, offcfg(x)},
