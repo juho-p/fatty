@@ -271,6 +271,10 @@ static int tab_paint_width = 0;
 void win_paint_tabs(HDC dc, int width) {
     if (!tab_bar_visible) return;
 
+    // the sides of drawable area are not visible, so we really should draw to
+    // coordinates 1..(width-2)
+    width = width - 2 * PADDING;
+
     const auto bg = cfg.tab_bg_colour;
     const auto fg = cfg.tab_fg_colour;
     const auto active_bg = cfg.tab_active_bg_colour;
@@ -318,7 +322,7 @@ void win_paint_tabs(HDC dc, int width) {
                 paint_tab(bufdc, tabwidth, loc_tabheight, tabs[i]);
             }
 
-            BitBlt(dc, i*tabwidth+1, 1, tabwidth, tabheight(),
+            BitBlt(dc, i*tabwidth+PADDING, PADDING, tabwidth, tabheight(),
                     bufdc, 0, 0, SRCCOPY);
         }
         
@@ -330,7 +334,7 @@ void win_paint_tabs(HDC dc, int width) {
             MoveToEx(bufdc, 0, 0, nullptr);
             LineTo(bufdc, 0, loc_tabheight);
             LineTo(bufdc, width - (tabs.size() * tabwidth), loc_tabheight);
-            BitBlt(dc, tabs.size()*tabwidth+1, 1, width - (tabs.size() * tabwidth), tabheight(),
+            BitBlt(dc, tabs.size()*tabwidth+1, PADDING, width - (tabs.size() * tabwidth), tabheight(),
                     bufdc, 0, 0, SRCCOPY);
         }
     }
