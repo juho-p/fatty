@@ -98,7 +98,8 @@ int win_active_tab() { return active_tab; }
 static void update_window_state() {
     Tab& tab = tabs.at(active_tab);
     win_update_menus();
-    SetWindowTextW(wnd, tab.info.title.data());
+    if (cfg.title_settable)
+      SetWindowTextW(wnd, tab.info.title.data());
     win_adapt_term_size();
 }
 
@@ -137,7 +138,7 @@ static char* g_cmd;
 static char** g_argv;
 static void newtab(
         unsigned short rows, unsigned short cols,
-        unsigned short width, unsigned short height, const char* cwd) {
+        unsigned short width, unsigned short height, const char* cwd, char* title) {
     tabs.push_back(Tab());
     Tab& tab = tabs.back();
     tab.terminal->child = tab.chld.get();
@@ -147,6 +148,10 @@ static void newtab(
     tab.chld->home = g_home;
     struct winsize wsz{rows, cols, width, height};
     child_create(tab.chld.get(), tab.terminal.get(), g_argv, &wsz, cwd);
+    if (title)
+      win_set_title(tab.terminal.get(), title);
+    else
+      win_set_title(tab.terminal.get(), g_cmd);
 }
 
 static void set_tab_bar_visibility(bool b);
@@ -155,11 +160,11 @@ void win_tab_set_argv(char** argv) {
     g_argv = argv;
 }
 
-void win_tab_init(char* home, char* cmd, char** argv, int width, int height) {
+void win_tab_init(char* home, char* cmd, char** argv, int width, int height, char* title) {
     g_home = home;
     g_cmd = cmd;
     g_argv = argv;
-    newtab(cfg.rows, cfg.cols, width, height, nullptr);
+    newtab(cfg.rows, cfg.cols, width, height, nullptr, title);
     set_tab_bar_visibility(tabs.size() > 1);
 }
 void win_tab_create() {
@@ -167,7 +172,7 @@ void win_tab_create() {
     std::stringstream cwd_path;
     cwd_path << "/proc/" << t.child->pid << "/cwd";
     char* cwd = realpath(cwd_path.str().c_str(), 0);
-    newtab(t.rows, t.cols, t.cols * font_width, t.rows * font_height, cwd);
+    newtab(t.rows, t.cols, t.cols * font_width, t.rows * font_height, cwd, nullptr);
     free(cwd);
     set_active_tab(tabs.size() - 1);
     set_tab_bar_visibility(tabs.size() > 1);
@@ -209,7 +214,7 @@ bool win_should_die() { return tabs.size() == 0; }
 
 static int tabheight() {
     init_scale_factors();
-    return 18 * g_yscale;
+    return 23 * g_yscale;
 }
 
 static bool tab_bar_visible = false;
@@ -234,21 +239,6 @@ static void set_tab_bar_visibility(bool b) {
 }
 int win_tab_height() { return tab_bar_visible ? tabheight() : 0; }
 
-// paint a tab to dc (where dc draws to buffer)
-static void paint_tab(HDC dc, int width, const Tab& tab) {
-    MoveToEx(dc, 0, 0, nullptr);
-    LineTo(dc, 0, tabheight());
-    TextOutW(dc, width/2, 1, tab.info.title.data(), tab.info.title.size());
-}
-
-// Wrap GDI object for automatic release
-struct SelectWObj {
-    HDC tdc;
-    HGDIOBJ old;
-    SelectWObj(HDC dc, HGDIOBJ obj) { tdc = dc; old = SelectObject(dc, obj); }
-    ~SelectWObj() { DeleteObject(SelectObject(tdc, old)); }
-};
-
 static int tab_font_size() {
     return 14 * g_yscale;
 }
@@ -261,6 +251,22 @@ static HGDIOBJ new_active_tab_font() {
     return CreateFont(tab_font_size(),0,0,0,FW_BOLD,0,0,0,1,0,0,CLEARTYPE_QUALITY,0,0);
 }
 
+// paint a tab to dc (where dc draws to buffer)
+static void paint_tab(HDC dc, int width, int tabheight, const Tab& tab) {
+    MoveToEx(dc, 0, tabheight, nullptr);
+    LineTo(dc, 0, 0);
+    LineTo(dc, width, 0);
+    TextOutW(dc, width/2, (tabheight - tab_font_size()) / 2, tab.info.title.data(), tab.info.title.size());
+}
+
+// Wrap GDI object for automatic release
+struct SelectWObj {
+    HDC tdc;
+    HGDIOBJ old;
+    SelectWObj(HDC dc, HGDIOBJ obj) { tdc = dc; old = SelectObject(dc, obj); }
+    ~SelectWObj() { DeleteObject(SelectObject(tdc, old)); }
+};
+
 static int tab_paint_width = 0;
 void win_paint_tabs(HDC dc, int width) {
     if (!tab_bar_visible) return;
@@ -270,11 +276,11 @@ void win_paint_tabs(HDC dc, int width) {
     const auto active_bg = cfg.tab_active_bg_colour;
     const auto attention_bg = cfg.tab_attention_bg_colour;
 
-    const int tabwidth = width / tabs.size();
-    const int tabheight = g_render_tab_height;
+    const int tabwidth = (width / tabs.size()) > 200 ? 200 : width / tabs.size();
+    const int loc_tabheight = 18 * g_yscale;
     tab_paint_width = tabwidth;
     RECT tabrect;
-    SetRect(&tabrect, 0, 0, tabwidth, tabheight);
+    SetRect(&tabrect, 0, 0, tabwidth, loc_tabheight+1);
 
     HDC bufdc = CreateCompatibleDC(dc);
     SetBkMode(bufdc, TRANSPARENT);
@@ -285,7 +291,7 @@ void win_paint_tabs(HDC dc, int width) {
         auto obrush = SelectWObj(bufdc, brush);
         auto open = SelectWObj(bufdc, CreatePen(PS_SOLID, 0, fg));
         auto obuf = SelectWObj(bufdc,
-                CreateCompatibleBitmap(dc, tabwidth, tabheight+1));
+                CreateCompatibleBitmap(dc, tabwidth, tabheight()));
 
         auto ofont = SelectWObj(bufdc, new_tab_font());
 
@@ -305,12 +311,26 @@ void win_paint_tabs(HDC dc, int width) {
 
             if (active) {
                 auto _f = SelectWObj(bufdc, new_active_tab_font());
-                paint_tab(bufdc, tabwidth, tabs[i]);
+                paint_tab(bufdc, tabwidth, loc_tabheight, tabs[i]);
             } else {
-                paint_tab(bufdc, tabwidth, tabs[i]);
+                MoveToEx(bufdc, 0, loc_tabheight, nullptr);
+                LineTo(bufdc, tabwidth, loc_tabheight);
+                paint_tab(bufdc, tabwidth, loc_tabheight, tabs[i]);
             }
 
-            BitBlt(dc, i*tabwidth, 0, tabwidth, tabheight+1,
+            BitBlt(dc, i*tabwidth+1, 1, tabwidth, tabheight(),
+                    bufdc, 0, 0, SRCCOPY);
+        }
+        
+        if ((int)tabs.size() * tabwidth < width) {
+            SetRect(&tabrect, 0, 0, width - (tabs.size() * tabwidth), loc_tabheight+1);
+            auto obrush = SelectWObj(bufdc, brush);
+            auto obuf = SelectWObj(bufdc, CreateCompatibleBitmap(dc, width - (tabs.size() * tabwidth), tabheight()));
+            FillRect(bufdc, &tabrect, brush);
+            MoveToEx(bufdc, 0, 0, nullptr);
+            LineTo(bufdc, 0, loc_tabheight);
+            LineTo(bufdc, width - (tabs.size() * tabwidth), loc_tabheight);
+            BitBlt(dc, tabs.size()*tabwidth+1, 1, width - (tabs.size() * tabwidth), tabheight(),
                     bufdc, 0, 0, SRCCOPY);
         }
     }
