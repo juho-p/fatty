@@ -1127,6 +1127,8 @@ main(int argc, char *argv[])
 
   term_initialized = 1;
 
+  setenv("CHERE_INVOKING", "1", false);
+  
   child_init();
 
   // Initialise the scroll bar.
