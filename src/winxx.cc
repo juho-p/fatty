@@ -334,7 +334,7 @@ void win_paint_tabs(HDC dc, int width) {
             MoveToEx(bufdc, 0, 0, nullptr);
             LineTo(bufdc, 0, loc_tabheight);
             LineTo(bufdc, width - (tabs.size() * tabwidth), loc_tabheight);
-            BitBlt(dc, tabs.size()*tabwidth+1, PADDING, width - (tabs.size() * tabwidth), tabheight(),
+            BitBlt(dc, tabs.size()*tabwidth+PADDING, PADDING, width - (tabs.size() * tabwidth), tabheight(),
                     bufdc, 0, 0, SRCCOPY);
         }
     }
