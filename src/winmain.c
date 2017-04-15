@@ -303,6 +303,7 @@ void
 win_invalidate_all(void)
 {
   InvalidateRect(wnd, null, true);
+  win_for_each_term(term_paint);
 }
 
 void
@@ -311,7 +312,7 @@ win_adapt_term_size(void)
   if (IsIconic(wnd))
     return;
 
- /* Current window sizes ... */
+  /* Current window sizes ... */
   RECT cr, wr;
   GetClientRect(wnd, &cr);
   GetWindowRect(wnd, &wr);
