@@ -68,7 +68,11 @@ void win_tab_move(int amount);
 void win_tab_create();
 void win_tab_clean();
 void win_tab_attention(struct term* term);
-void win_tab_title(struct term* term, wchar_t* title);
+void win_tab_set_title(struct term* term, wchar_t* title);
+wchar_t* win_tab_get_title(unsigned int idx);
+
+void win_active_tab_title_push();
+wchar_t* win_active_tab_title_pop();
 
 void win_tab_mouse_click(int x);
 int win_tab_height();

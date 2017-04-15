@@ -18,6 +18,8 @@ extern "C" {
 #include "winpriv.h"
 }
 
+#define lengthof(array) (sizeof(array) / sizeof(*(array)))
+
 using std::tuple;
 using std::get;
 
@@ -47,6 +49,7 @@ Tab::Tab() : terminal(new term), chld(new child) {
     memset(terminal.get(), 0, sizeof(struct term));
     memset(chld.get(), 0, sizeof(struct child));
     info.attention = false;
+    info.titles_i = 0;
 }
 Tab::~Tab() {
     if (terminal)
@@ -84,6 +87,23 @@ void win_process_timer_message(WPARAM message) {
     get<0>(callback)( get<1>(callback) );
 }
 
+void win_active_tab_title_push() {
+  Tab& tab = tabs.at(active_tab);
+  if (tab.info.titles_i == lengthof(tab.info.titles))
+    tab.info.titles_i = 0;
+  else
+    tab.info.titles_i++;
+}
+  
+wchar_t* win_active_tab_title_pop() {
+  Tab& tab = tabs.at(active_tab);
+  if (!tab.info.titles_i)
+    tab.info.titles_i = lengthof(tab.info.titles);
+  else
+    tab.info.titles_i--;
+  return win_tab_get_title(active_tab);
+}
+
 static void invalidate_tabs() {
     win_invalidate_all();
 }
@@ -96,10 +116,9 @@ int win_tab_count() { return tabs.size(); }
 int win_active_tab() { return active_tab; }
 
 static void update_window_state() {
-    Tab& tab = tabs.at(active_tab);
     win_update_menus();
     if (cfg.title_settable)
-      SetWindowTextW(wnd, tab.info.title.data());
+      SetWindowTextW(wnd, win_tab_get_title(active_tab));
     win_adapt_term_size();
 }
 
@@ -202,12 +221,16 @@ void win_tab_attention(struct term* term) {
     invalidate_tabs();
 }
 
-void win_tab_title(struct term* term, wchar_t* title) {
+void win_tab_set_title(struct term* term, wchar_t* title) {
     auto& tab = tab_by_term(term);
-    if (tab.info.title != title) {
-        tab_by_term(term).info.title = title;
+    if (tab.info.titles[tab.info.titles_i] != title) {
+        tab.info.titles[tab.info.titles_i] = title;
         invalidate_tabs();
     }
+}
+
+wchar_t* win_tab_get_title(unsigned int idx) {
+    return (wchar_t *)tabs[idx].info.titles[tabs[idx].info.titles_i].c_str();
 }
 
 bool win_should_die() { return tabs.size() == 0; }
@@ -256,7 +279,7 @@ static void paint_tab(HDC dc, int width, int tabheight, const Tab& tab) {
     MoveToEx(dc, 0, tabheight, nullptr);
     LineTo(dc, 0, 0);
     LineTo(dc, width, 0);
-    TextOutW(dc, width/2, (tabheight - tab_font_size()) / 2, tab.info.title.data(), tab.info.title.size());
+    TextOutW(dc, width/2, (tabheight - tab_font_size()) / 2, tab.info.titles[tab.info.titles_i].data(), tab.info.titles[tab.info.titles_i].size());
 }
 
 // Wrap GDI object for automatic release

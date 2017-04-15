@@ -85,7 +85,7 @@ win_set_title(struct term* term, char *title)
   if (cs_mbstowcs(wtitle, title, lengthof(wtitle)) >= 0) {
     if (term == win_active_terminal() && cfg.title_settable)
       SetWindowTextW(wnd, wtitle);
-    win_tab_title(term, wtitle);
+    win_tab_set_title(term, wtitle);
   }
 }
 
@@ -101,33 +101,16 @@ win_copy_title(void)
 /*
  * Title stack (implemented as fixed-size circular buffer)
  */
-static wstring titles[16];
-static uint titles_i;
-
 void
 win_save_title(void)
 {
-  int len = GetWindowTextLengthW(wnd);
-  wchar *title = newn(wchar, len + 1);
-  GetWindowTextW(wnd, title, len + 1);
-  delete(titles[titles_i]);
-  titles[titles_i++] = title;
-  if (titles_i == lengthof(titles))
-    titles_i = 0;
+  win_active_tab_title_push();
 }
 
 void
 win_restore_title(void)
 {
-  if (!titles_i)
-    titles_i = lengthof(titles);
-  wstring title = titles[--titles_i];
-  if (title) {
-    SetWindowTextW(wnd, title);
-    win_tab_title(win_active_terminal(), (wchar_t *)title);
-    delete(title);
-    titles[titles_i] = 0;
-  }
+  SetWindowTextW(wnd, win_active_tab_title_pop());
 }
 
 /*
