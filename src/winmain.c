@@ -554,8 +554,7 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
         switch (confirm_multi_tab()) {
           when IDNO:
             if (!cfg.confirm_exit || confirm_tab_exit()) {
-              kill(term->child->pid, SIGKILL);
-              term->child->killed = true;
+              child_terminate(term->child);
             }
             return 0;
           when IDCANCEL:
