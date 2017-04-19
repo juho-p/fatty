@@ -280,7 +280,9 @@ void win_paint_tabs(HDC dc, int width) {
     const auto active_bg = cfg.tab_active_bg_colour;
     const auto attention_bg = cfg.tab_attention_bg_colour;
 
-    const int tabwidth = (width / tabs.size()) > 200 ? 200 : width / tabs.size();
+    const unsigned int preferred_width = 200 * g_xscale;
+
+    const int tabwidth = (width / tabs.size()) > preferred_width ? preferred_width : width / tabs.size();
     const int loc_tabheight = 18 * g_yscale;
     tab_paint_width = tabwidth;
     RECT tabrect;
