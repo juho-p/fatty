@@ -79,13 +79,19 @@ load_dwm_funcs(void)
 }
 
 void
+win_set_titlew(struct term* term, wchar *wtitle)
+{
+    if (term == win_active_terminal() && cfg.title_settable)
+      SetWindowTextW(wnd, wtitle);
+    win_tab_set_title(term, wtitle);
+}
+
+void
 win_set_title(struct term* term, char *title)
 {
   wchar wtitle[strlen(title) + 1];
   if (cs_mbstowcs(wtitle, title, lengthof(wtitle)) >= 0) {
-    if (term == win_active_terminal() && cfg.title_settable)
-      SetWindowTextW(wnd, wtitle);
-    win_tab_set_title(term, wtitle);
+    win_set_titlew(term, wtitle);
   }
 }
 
@@ -110,7 +116,7 @@ win_save_title(void)
 void
 win_restore_title(void)
 {
-  SetWindowTextW(wnd, win_active_tab_title_pop());
+  win_set_titlew(win_active_terminal(), win_active_tab_title_pop());
 }
 
 /*
