@@ -16,6 +16,8 @@
 
 extern "C" {
 #include "winpriv.h"
+
+int cs_mbstowcs(wchar *ws, const char *s, size_t wlen);
 }
 
 #define lengthof(array) (sizeof(array) / sizeof(*(array)))
@@ -87,23 +89,6 @@ void win_process_timer_message(WPARAM message) {
     get<0>(callback)( get<1>(callback) );
 }
 
-void win_active_tab_title_push() {
-  Tab& tab = tabs.at(active_tab);
-  if (tab.info.titles_i == lengthof(tab.info.titles))
-    tab.info.titles_i = 0;
-  else
-    tab.info.titles_i++;
-}
-  
-wchar_t* win_active_tab_title_pop() {
-  Tab& tab = tabs.at(active_tab);
-  if (!tab.info.titles_i)
-    tab.info.titles_i = lengthof(tab.info.titles);
-  else
-    tab.info.titles_i--;
-  return win_tab_get_title(active_tab);
-}
-
 static void invalidate_tabs() {
     win_invalidate_all();
 }
@@ -167,10 +152,19 @@ static void newtab(
     tab.chld->home = g_home;
     struct winsize wsz{rows, cols, width, height};
     child_create(tab.chld.get(), tab.terminal.get(), g_argv, &wsz, cwd);
-    if (title)
-      win_set_title(tab.terminal.get(), title);
-    else
-      win_set_title(tab.terminal.get(), g_cmd);
+    wchar * ws;
+    if (title) {
+      int size = cs_mbstowcs(NULL, title, 0) + 1;
+      ws = (wchar *)malloc(size * sizeof(wchar));  // includes terminating NUL
+      cs_mbstowcs(ws, title, size);
+    }
+    else {
+      int size = cs_mbstowcs(NULL, g_cmd, 0) + 1;
+      ws = (wchar *)malloc(size * sizeof(wchar));  // includes terminating NUL
+      cs_mbstowcs(ws, g_cmd, size);
+    }
+    win_tab_set_title(tab.terminal.get(), ws);
+    free(ws);
 }
 
 static void set_tab_bar_visibility(bool b);
@@ -236,14 +230,45 @@ void win_tab_set_title(struct term* term, wchar_t* title) {
         tab.info.titles[tab.info.titles_i] = title;
         invalidate_tabs();
     }
-    TCITEMW tie; 
-    tie.mask = TCIF_TEXT; 
-    tie.pszText = title;
-    SendMessageW(tab_wnd, TCM_SETITEMW, tab.info.idx, (LPARAM)&tie);
+    if (term == win_active_terminal()) {
+      win_set_title((wchar *)tab.info.titles[tab.info.titles_i].data());
+    }
 }
 
 wchar_t* win_tab_get_title(unsigned int idx) {
     return (wchar_t *)tabs[idx].info.titles[tabs[idx].info.titles_i].c_str();
+}
+
+void win_tab_title_push(struct term* term) {
+  Tab& tab = tab_by_term(term);
+  if (tab.info.titles_i == lengthof(tab.info.titles))
+    tab.info.titles_i = 0;
+  else
+    tab.info.titles_i++;
+}
+  
+wchar_t* win_tab_title_pop(struct term* term) {
+  Tab& tab = tab_by_term(term);
+  if (!tab.info.titles_i)
+    tab.info.titles_i = lengthof(tab.info.titles);
+  else
+    tab.info.titles_i--;
+  return win_tab_get_title(active_tab);
+}
+
+/*
+ * Title stack (implemented as fixed-size circular buffer)
+ */
+void
+win_tab_save_title(struct term* term)
+{
+  win_tab_title_push(term);
+}
+
+void
+win_tab_restore_title(struct term* term)
+{
+  win_tab_set_title(term, win_tab_title_pop(term));
 }
 
 bool win_should_die() { return tabs.size() == 0; }
