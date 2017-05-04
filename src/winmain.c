@@ -79,14 +79,10 @@ load_dwm_funcs(void)
 }
 
 void
-win_set_title(struct term* term, char *title)
+win_set_title(wchar *wtitle)
 {
-  wchar wtitle[strlen(title) + 1];
-  if (cs_mbstowcs(wtitle, title, lengthof(wtitle)) >= 0) {
-    if (term == win_active_terminal() && cfg.title_settable)
+    if (cfg.title_settable)
       SetWindowTextW(wnd, wtitle);
-    win_tab_title(term, wtitle);
-  }
 }
 
 void
@@ -96,38 +92,6 @@ win_copy_title(void)
   wchar title[len + 1];
   len = GetWindowTextW(wnd, title, len + 1);
   win_copy(title, 0, len + 1);
-}
-
-/*
- * Title stack (implemented as fixed-size circular buffer)
- */
-static wstring titles[16];
-static uint titles_i;
-
-void
-win_save_title(void)
-{
-  int len = GetWindowTextLengthW(wnd);
-  wchar *title = newn(wchar, len + 1);
-  GetWindowTextW(wnd, title, len + 1);
-  delete(titles[titles_i]);
-  titles[titles_i++] = title;
-  if (titles_i == lengthof(titles))
-    titles_i = 0;
-}
-
-void
-win_restore_title(void)
-{
-  if (!titles_i)
-    titles_i = lengthof(titles);
-  wstring title = titles[--titles_i];
-  if (title) {
-    SetWindowTextW(wnd, title);
-    win_tab_title(win_active_terminal(), (wchar_t *)title);
-    delete(title);
-    titles[titles_i] = 0;
-  }
 }
 
 /*
@@ -303,6 +267,7 @@ void
 win_invalidate_all(void)
 {
   InvalidateRect(wnd, null, true);
+  win_for_each_term(term_paint);
 }
 
 void
@@ -311,7 +276,7 @@ win_adapt_term_size(void)
   if (IsIconic(wnd))
     return;
 
- /* Current window sizes ... */
+  /* Current window sizes ... */
   RECT cr, wr;
   GetClientRect(wnd, &cr);
   GetWindowRect(wnd, &wr);
@@ -570,8 +535,7 @@ win_proc(HWND wnd, UINT message, WPARAM wp, LPARAM lp)
         switch (confirm_multi_tab()) {
           when IDNO:
             if (!cfg.confirm_exit || confirm_tab_exit()) {
-              kill(term->child->pid, SIGKILL);
-              term->child->killed = true;
+              child_terminate(term->child);
             }
             return 0;
           when IDCANCEL:
@@ -1127,6 +1091,8 @@ main(int argc, char *argv[])
 
   term_initialized = 1;
 
+  setenv("CHERE_INVOKING", "1", false);
+  
   child_init();
 
   // Initialise the scroll bar.

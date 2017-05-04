@@ -14,9 +14,7 @@ void win_update_mouse(void);
 void win_capture_mouse(void);
 void win_bell(struct term* term);
 
-void win_set_title(struct term* term, char *);
-void win_save_title(void);
-void win_restore_title(void);
+void win_set_title(wchar *);
 
 colour win_get_colour(colour_i);
 void win_set_colour(colour_i, colour);
