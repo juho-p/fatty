@@ -198,14 +198,12 @@ void win_tab_clean() {
                 return x.chld->pid == 0; });
         if (it == tabs.end()) break;
         invalidate = true;
-        for (auto iter = callbacks.begin(); iter != callbacks.end(); iter++) {
-          if (get<1>(*iter) != NULL) {
-            if ((term *)(get<1>(*iter)) == (*it).terminal.get()) {
-              KillTimer(wnd, reinterpret_cast<UINT_PTR>(&*iter));
-              callbacks.erase(iter);
-              if (iter != callbacks.end()) break;
-            }
-          }
+        for (;;) {
+          auto cb = std::find_if(callbacks.begin(), callbacks.end(), [&it](Callback x) {
+            return ((term *)(get<1>(x)) == (*it).terminal.get()); });
+          if (cb == callbacks.end()) break;
+          KillTimer(wnd, reinterpret_cast<UINT_PTR>(&*cb));
+          callbacks.erase(cb);
         }
         tabs.erase(it);
     }
