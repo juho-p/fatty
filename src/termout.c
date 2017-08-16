@@ -1249,9 +1249,10 @@ term_write(struct term* term, const char *buf, uint len)
         }
         else if (c >= '0' && c <= '9') {
           uint i = term->csi_argc - 1;
-          if (i < lengthof(term->csi_argv))
+          if (i < lengthof(term->csi_argv)) {
             term->csi_argv[i] = 10 * term->csi_argv[i] + c - '0';
             term->csi_argv_defined[i] = 1;
+          }
         }
         else if (c < 0x40)
           term->esc_mod = term->esc_mod ? 0xFF : c;
