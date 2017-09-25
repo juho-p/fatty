@@ -19,7 +19,7 @@ using tabs.
 If you find bugs (there are probably many), you may report them on Github or
 send pull requests
 
-###Installing
+### Installing
 
 To install, run cygwin setup\*.exe and have at least following packages marked for
 install:
