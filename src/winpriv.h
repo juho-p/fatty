@@ -55,7 +55,7 @@ void win_switch(bool back);
 
 void win_set_ime_open(bool);
 
-bool win_is_fullscreen;
+extern bool win_is_fullscreen;
 
 void win_process_timer_message(WPARAM message);
 

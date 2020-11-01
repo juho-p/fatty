@@ -22,7 +22,7 @@ HINSTANCE inst;
 HWND wnd;
 HIMC imc;
 
-bool win_is_full_screen;
+bool win_is_fullscreen;
 
 static char **main_argv;
 static int main_argc;

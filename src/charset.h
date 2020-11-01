@@ -46,7 +46,7 @@ wchar cs_btowc_glyph(char);
 extern string locale_menu[];
 extern string charset_menu[];
 
-int cs_cur_max;
+extern int cs_cur_max;
 
 extern bool font_ambig_wide;
 
