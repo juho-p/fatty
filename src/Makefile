@@ -49,7 +49,7 @@ $(BUILD_DIR)%.o: %.c Makefile
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(compileflags)
 $(BUILD_DIR)%.o: %.rc
 	@$(prepare_build)
-	$(RC) --preprocessor '$(CC) -E -xc -DRC_INVOKED -MMD -MT $@ $(CPPFLAGS)' $< $*.o
+	$(CC) -E -xc -DRC_INVOKED -MMD -MT $(CPPFLAGS) $< | $(RC) -o $*.o
 	@mv -v res.o res.d $(BUILD_DIR)
 
 .PHONY: clean
