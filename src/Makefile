@@ -50,7 +50,7 @@ $(BUILD_DIR)%.o: %.c Makefile
 $(BUILD_DIR)%.o: %.rc
 	@$(prepare_build)
 	$(CC) -E -xc -DRC_INVOKED -MMD -MT $(CPPFLAGS) $< | $(RC) -o $*.o
-	@mv -v res.o res.d $(BUILD_DIR)
+	@mv -v $*.o $*.d $(BUILD_DIR)
 
 .PHONY: clean
 clean:
